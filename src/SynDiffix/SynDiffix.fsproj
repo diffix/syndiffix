@@ -25,5 +25,6 @@
     <PackageReference Include="BloomFilter.NetCore" Version="2.0.0" />
     <PackageReference Include="FsToolkit.ErrorHandling" Version="2.1.2" />
     <PackageReference Include="CsvHelper" Version="30.0.1" />
+    <PackageReference Include="Thoth.Json.Net" Version="10.0.0" />
   </ItemGroup>
 </Project>

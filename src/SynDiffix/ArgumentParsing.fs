@@ -14,6 +14,7 @@ type private Arguments =
   | [<Unique>] Top_Count of int * int
   | [<Unique; AltCommandLine("-noise_sd")>] Layer_Noise_SD of float
   | No_Clustering
+  | [<Unique>] Clusters of string
   | [<Unique>] Clustering_MainColumn of string
   | [<Unique>] Clustering_SampleSize of int
   | [<Unique>] Clustering_MaxWeight of float
@@ -42,6 +43,7 @@ type private Arguments =
       | Layer_Noise_SD _ -> "Count SD for each noise layer."
       | No_Clustering -> "Disables column clustering."
       | Clustering_MainColumn _ -> "Column to be prioritized in clusters."
+      | Clusters _ -> "The JSON file defining the clusters."
       | Clustering_SampleSize _ -> "Table sample size when measuring dependence."
       | Clustering_MaxWeight _ -> "Maximum cluster size, in weight units."
       | Clustering_Thresh_Merge _ -> "Dependence threshold for combining columns in a cluster."
@@ -61,6 +63,7 @@ type ParsedArguments =
     MainColumn: int option
     Verbose: bool
     Debug: bool
+    Clusters: string
   }
 
 let private parseColumnReference (str: string) =
@@ -164,6 +167,8 @@ let parseArguments argv =
   let verbose = (parsedArguments.TryGetResult Verbose).IsSome
   let debug = (parsedArguments.TryGetResult Debug).IsSome
 
+  let clusters = parsedArguments.TryGetResult Clusters |> Option.defaultValue ""
+
   let columns = parsedArguments.TryGetResult Columns
   let csvColumns = columns.Value |> List.map parseColumnReference
 
@@ -197,4 +202,5 @@ let parseArguments argv =
     MainColumn = mainColumn
     Verbose = verbose
     Debug = debug
+    Clusters = clusters
   }
