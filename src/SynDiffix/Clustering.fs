@@ -468,7 +468,12 @@ module Clustering =
     let stitchOwner = context.StitchOwner
     let random = context.Random
     let allColumns = context.AllColumns
-    let numRows = ((float leftRows.Length + float rightRows.Length) / 2.0) |> round |> int
+
+    let numRows =
+      match stitchOwner with
+      | StitchOwner.Left -> leftRows.Length
+      | StitchOwner.Right -> rightRows.Length
+      | _ -> ((float leftRows.Length + float rightRows.Length) / 2.0) |> round |> int
 
     // This time we shuffle to remove previous sorting in order to safely discard rows.
 
