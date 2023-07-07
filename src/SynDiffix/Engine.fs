@@ -78,7 +78,15 @@ let private parseClusters clusters =
     Decode.object (fun get ->
       let stitchColumns = get.Required.Field "StitchColumns" (Decode.array Decode.int)
       let derivedColumns = get.Required.Field "DerivedColumns" (Decode.array Decode.int)
-      (StitchOwner.Shared, stitchColumns, derivedColumns)
+
+      let stitchOwner =
+        match (get.Required.Field "StitchOwner" Decode.string).ToLower() with
+        | "left" -> StitchOwner.Left
+        | "right" -> StitchOwner.Right
+        | "shared" -> StitchOwner.Shared
+        | _ -> failwith "Invalid stitch owner type!"
+
+      (stitchOwner, stitchColumns, derivedColumns)
     )
 
   let clustersDecoder =
