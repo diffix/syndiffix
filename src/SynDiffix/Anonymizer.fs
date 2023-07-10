@@ -221,9 +221,9 @@ let isLowCount salt (lowCountParams: LowCountParams) (aidTrackers: (int64 * Hash
     else
       let thresholdNoise = generateNoise salt "suppress" lowCountParams.LayerSD [ seed ]
 
-      // `LowMeanGap` is the number of (total!) standard deviations between `LowThreshold` and desired mean
+      // `LowMeanGap` is the number of standard deviations between `LowThreshold` and desired mean
       let thresholdMean =
-        lowCountParams.LowMeanGap * lowCountParams.LayerSD * sqrt (2.0)
+        lowCountParams.LowMeanGap * lowCountParams.LayerSD
         + float lowCountParams.LowThreshold
 
       let threshold = thresholdNoise + thresholdMean
