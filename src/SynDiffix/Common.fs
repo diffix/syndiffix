@@ -151,14 +151,14 @@ type BucketizationParams =
   }
   static member Default =
     {
-      SingularityLowThreshold = 10
-      RangeLowThreshold = 50
+      SingularityLowThreshold = 5
+      RangeLowThreshold = 15
       ClusteringEnabled = true
       ClusteringTableSampleSize = 1000
       ClusteringMaxClusterWeight = 15.0
       ClusteringMergeThreshold = 0.1
       PrecisionLimitRowFraction = 10000
-      PrecisionLimitDepthThreshold = 12
+      PrecisionLimitDepthThreshold = 15
     }
 
 type AnonymizationParams =
