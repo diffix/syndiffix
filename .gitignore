@@ -1,0 +1,25 @@
+# Ignore compiled Python files
+*.pyc
+__pycache__/
+
+# Ignore Pipenv virtual environment
+/.venv/
+/Pipfile.lock
+
+# Ignore distribution/build files
+/dist/
+/build/
+
+# Ignore local development settings
+/.vscode/
+/.idea/
+
+# Ignore editor-specific files
+*.sublime-project
+*.sublime-workspace
+
+# Ignore macOS-specific files
+.DS_Store
+
+# Ignore logs
+*.log
