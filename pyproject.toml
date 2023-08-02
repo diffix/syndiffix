@@ -1,3 +1,6 @@
+[tool.flake8]
+max-line-length = 120
+
 [tool.black]
 line-length = 120
 target-version = ['py38']
@@ -15,13 +18,14 @@ ignore_missing_imports = true
 name = "syndiffix"
 version = "0.1.0"
 description = "Pure Python implementation of SynDiffix"
-authors = ["Your Name <you@example.com>"]
+authors = ["Open Diffix <hello@open-diffix.org>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.8.1"
 pandas = "^2.0.3"
 fire = "^0.5.0"
+flake8-pyproject = "^1.2.3"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.4.1"

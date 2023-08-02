@@ -11,5 +11,5 @@ class Synthesizer(object):
 
     def sample(self, n_samples: Optional[int] = None) -> pd.DataFrame:
         if n_samples is not None:
-            raise ValueError("n_samples not supported")
+            raise NotImplementedError("Specifying n_samples not implemented yet")
         return self.df
