@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+jobs:
+  ci:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.8"]
+        poetry-version: ["1.5.1"]
+        os: [ubuntu-20.04, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Run image
+        uses: abatilo/actions-poetry@v2
+        with:
+          poetry-version: ${{ matrix.poetry-version }}
+      - name: Install project dependencies
+        run: |
+          poetry install
+      - name: Run tests
+        run: |
+          poetry run pytest .
+      - name: Check format
+        run: |
+          poetry run black --check .
+      - name: Run linter
+        run: |
+          poetry run flake8 .
+      - name: Check type hints
+        run: |
+          poetry run mypy .
