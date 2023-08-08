@@ -3,10 +3,10 @@ max-line-length = 120
 
 [tool.black]
 line-length = 120
-target-version = ['py38']
+target-version = ['py310']
 
 [tool.mypy]
-python_version = 3.8
+python_version = 3.10
 check_untyped_defs = true
 disallow_untyped_defs = true
 
@@ -22,7 +22,7 @@ authors = ["Open Diffix <hello@open-diffix.org>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.8.1"
+python = "^3.10.0"
 pandas = "^2.0.3"
 fire = "^0.5.0"
 flake8-pyproject = "^1.2.3"
