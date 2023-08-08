@@ -1,5 +1,6 @@
 [tool.flake8]
 max-line-length = 120
+ignore = ["F403", "F405"] # allow star imports
 
 [tool.black]
 line-length = 120
