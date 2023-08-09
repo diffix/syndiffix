@@ -2,8 +2,8 @@ from enum import Enum, unique
 from dataclasses import dataclass, field
 
 Hash = int
-
-Row = list[object]
+Value = int | float | str | bool | None
+Row = list[Value]
 
 
 @unique
