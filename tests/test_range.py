@@ -27,5 +27,5 @@ from syndiffix.range import *
         (Range(0.0, 2.0**-1073 + 2.0**-1074), Range(0.0, 2.0**-1072)),
     ],
 )
-def test_snapping(raw, snapped) -> None:
+def test_snapping(raw: Range, snapped: Range) -> None:
     assert snap_range(raw) == snapped
