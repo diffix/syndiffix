@@ -1,5 +1,5 @@
-from enum import Enum, unique
 from dataclasses import dataclass, field
+from enum import Enum, unique
 
 Hash = int
 Value = int | float | str | bool | None

@@ -39,3 +39,6 @@ jobs:
       - name: Check type hints
         run: |
           poetry run mypy .
+      - name: Check imports being sorted
+        run: |
+          poetry run isort . --check

@@ -1,9 +1,8 @@
-from dataclasses import dataclass, field
 import hashlib
 import math
+from dataclasses import dataclass, field
 
 from syndiffix.common import *
-
 
 # ----------------------------------------------------------------
 # Noise
