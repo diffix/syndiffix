@@ -9,6 +9,6 @@ Prerequisites: [poetry](https://python-poetry.org/docs/#installing-with-the-offi
 ## Development
 
 1. Activate `poetry` environment: `poetry shell`. (can skip, then prepend `poetry run` to the next commands)
-2. Format: `black .`
+2. Format: `black . && isort .`
 3. Test: `pytest .`
-4. Lints and checks: `flake8 . && mypy . && black --check .`
+4. Lints and checks: `flake8 . && mypy . && black --check . && isort . --check`
