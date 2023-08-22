@@ -6,6 +6,7 @@ from random import Random
 from typing import Any, Callable
 
 from ..common import *
+from ..microdata import MICRODATA_FLOAT_VALUE, MicrodataRow
 from ..range import Range
 from .common import *
 
