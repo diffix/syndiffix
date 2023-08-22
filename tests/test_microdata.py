@@ -1,10 +1,13 @@
 from syndiffix.bucket import Bucket
+from syndiffix.interval import Interval
 from syndiffix.microdata import *
-from syndiffix.range import Range
 
 
 def test_generates_real_microdata() -> None:
-    buckets = [Bucket([Range(-1.0, 2.0), Range(3.0, 3.0)], 3), Bucket([Range(-11.0, 12.0), Range(13.0, 13.0)], 10)]
+    buckets = [
+        Bucket([Interval(-1.0, 2.0), Interval(3.0, 3.0)], 3),
+        Bucket([Interval(-11.0, 12.0), Interval(13.0, 13.0)], 10),
+    ]
     microdata = generate_microdata(buckets)
     for row in microdata:
         assert len(row) == 2
@@ -23,5 +26,5 @@ def test_empty_bucket_list() -> None:
     assert generate_microdata([]) == []
 
 
-def test_empty_range_list() -> None:
+def test_empty_interval_list() -> None:
     assert generate_microdata([Bucket([], 2)]) == [[], []]

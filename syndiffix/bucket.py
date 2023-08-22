@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 
-from .range import Range
+from .interval import Interval
 
 
 @dataclass
 class Bucket:
-    ranges: list[Range]
+    intervals: list[Interval]
     count: int

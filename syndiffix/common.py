@@ -40,7 +40,7 @@ class SuppressionParams:
 @dataclass
 class BucketizationParams:
     singularity_low_threshold: int = 5
-    range_low_threshold: int = 15
+    interval_low_threshold: int = 15
     clustering_enabled: bool = True
     clustering_table_sample_size: int = 1000
     clustering_max_cluster_weight: float = 15.0
