@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from enum import Enum, unique
 from typing import Any, Callable, Literal, NewType
 
-from ..common import Row, Value
+from ..common import *
 
 # Global index of a column.
 ColumnId = NewType("ColumnId", int)
@@ -30,13 +30,13 @@ class Clusters:
 
 # TODO
 Forest = Any
-Combination = Any
 
 MICRODATA_SYN_VALUE: Literal[0] = 0
 MICRODATA_FLOAT_VALUE: Literal[1] = 1
 
 MicrodataRow = list[tuple[Value, float]]
 
+Combination = list[ColumnId]
 TreeMaterializer = Callable[[Forest, list[ColumnId]], tuple[list[MicrodataRow], Combination]]
 
 

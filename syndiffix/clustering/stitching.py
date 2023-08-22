@@ -5,20 +5,9 @@ from dataclasses import dataclass, replace
 from random import Random
 from typing import Any, Callable
 
-from ..common import ColumnType, Row
+from ..common import *
 from ..range import Range
-from .common import (
-    MICRODATA_FLOAT_VALUE,
-    Clusters,
-    ColumnId,
-    ColumnIndex,
-    DerivedCluster,
-    Forest,
-    MicrodataRow,
-    StitchOwner,
-    TreeMaterializer,
-    microdata_row_to_row,
-)
+from .common import *
 
 
 @dataclass
@@ -59,15 +48,6 @@ class StitchState:
         return replace(self, **kwargs)
 
 
-def _shuffle_rows(random: Random, rows: list[MicrodataRow]) -> None:
-    i = len(rows) - 1
-
-    while i > 0:
-        j = random.randint(0, i)
-        rows[i], rows[j] = rows[j], rows[i]
-        i -= 1
-
-
 def _align_length(random: Random, length: int, microtable: list[MicrodataRow]) -> list[MicrodataRow]:
     curr_length = len(microtable)
     if length == curr_length:
@@ -89,9 +69,6 @@ def _is_integral(col_type: ColumnType) -> bool:
         return False
     else:
         return True
-
-
-Combination = list[ColumnId]
 
 
 def _locate_columns(left_combination: Combination, right_combination: Combination) -> list[ColumnLocation]:
@@ -118,16 +95,16 @@ def _locate_columns(left_combination: Combination, right_combination: Combinatio
 def _binary_search(rows: list[MicrodataRow], column: ColumnIndex, target: float, start: int, end_exclusive: int) -> int:
     if start >= end_exclusive:
         return -1
-    else:
-        mid = (start + end_exclusive) // 2
 
-        if rows[mid][column][1] >= target:
-            if mid == 0 or rows[mid - 1][column][MICRODATA_FLOAT_VALUE] < target:
-                return mid
-            else:
-                return _binary_search(rows, column, target, start, mid)
+    mid = (start + end_exclusive) // 2
+
+    if rows[mid][column][1] >= target:
+        if mid == 0 or rows[mid - 1][column][MICRODATA_FLOAT_VALUE] < target:
+            return mid
         else:
-            return _binary_search(rows, column, target, mid + 1, end_exclusive)
+            return _binary_search(rows, column, target, start, mid)
+    else:
+        return _binary_search(rows, column, target, mid + 1, end_exclusive)
 
 
 DUMMY_VALUE = (0.0, 0.0)
@@ -175,11 +152,11 @@ def _merge_microdata(state: StitchState, left_rows: list[MicrodataRow], right_ro
     else:
         num_rows = int(round((len(left_rows) + len(right_rows)) / 2.0))
 
-    _shuffle_rows(random, left_rows)
+    random.shuffle(left_rows)
     left_rows = _align_length(random, num_rows, left_rows)
     left_rows.sort(key=_row_sort_key(context.left_stitch_indexes))
 
-    _shuffle_rows(random, right_rows)
+    random.shuffle(right_rows)
     right_rows = _align_length(random, num_rows, right_rows)
     right_rows.sort(key=_row_sort_key(context.right_stitch_indexes))
 
@@ -370,7 +347,7 @@ def _do_patch(
 
     left_rows = left_rows[:]
     right_rows = right_rows[:]
-    _shuffle_rows(random, right_rows)
+    random.shuffle(right_rows)
     right_rows = _align_length(random, num_rows, right_rows)
 
     all_rows = [

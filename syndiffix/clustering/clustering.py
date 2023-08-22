@@ -3,8 +3,8 @@ from dataclasses import dataclass
 from random import Random
 from typing import Optional
 
-from ..common import AnonymizationParams, BucketizationParams
-from .common import Clusters, ColumnId, DerivedCluster, Forest, StitchOwner
+from ..common import *
+from .common import *
 
 
 @dataclass
@@ -251,8 +251,9 @@ def solve_with_features(main_column: ColumnId, main_features: list[ColumnId], fo
     initial_cluster = list(clusters[0].columns)
     derived_clusters = [(StitchOwner.SHARED, [main_column], list(cluster.columns)) for cluster in clusters[1:]]
 
+    ml_columns = [main_column] + main_features
     patch_columns: list[DerivedCluster] = [
-        (StitchOwner.SHARED, [], [ColumnId(c)]) for c in range(num_columns) if c not in [main_column] + main_features
+        (StitchOwner.SHARED, [], [ColumnId(c)]) for c in range(num_columns) if c not in ml_columns
     ]
 
     return Clusters(initial_cluster=initial_cluster, derived_clusters=derived_clusters + patch_columns)
