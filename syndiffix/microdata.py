@@ -28,6 +28,6 @@ def _microdata_generator(intervals: list[Interval]) -> Generator[MicrodataRow, N
 def generate_microdata(buckets: list[Bucket]) -> list[MicrodataRow]:
     microdata_rows: list[MicrodataRow] = []
     for bucket in buckets:
-        microdata_rows += list(islice(_microdata_generator(bucket.intervals), bucket.count))
+        microdata_rows.extend(islice(_microdata_generator(bucket.intervals), bucket.count))
 
     return microdata_rows
