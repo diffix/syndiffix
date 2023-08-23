@@ -6,7 +6,8 @@ from random import Random
 from typing import Any, Callable
 
 from ..common import *
-from ..range import Range
+from ..interval import Interval
+from ..microdata import MICRODATA_FLOAT_VALUE, MicrodataRow
 from .common import *
 
 
@@ -38,7 +39,7 @@ class StitchContext:
 @dataclass
 class StitchState:
     depth: int
-    stitch_ranges: list[Range]
+    stitch_intervals: list[Interval]
     next_sort_column: int
     currently_sorted_by: int
     remaining_sort_attempts: int
@@ -184,12 +185,12 @@ def _can_split(state: StitchState) -> bool:
     split_column = state.next_sort_column
 
     if context.stitch_is_integral[split_column]:
-        range = state.stitch_ranges[split_column]
+        interval = state.stitch_intervals[split_column]
 
-        if context.stitch_max_values[split_column] == range.max:
-            return range.size() >= 1.0
+        if context.stitch_max_values[split_column] == interval.max:
+            return interval.size() >= 1.0
         else:
-            return range.size() > 1.0
+            return interval.size() > 1.0
     else:
         return True
 
@@ -217,11 +218,11 @@ def _stitch_rec(state: StitchState, left_rows: list[MicrodataRow], right_rows: l
             left_rows.sort(key=_row_sort_key([left_stitch_index]))
             right_rows.sort(key=_row_sort_key([right_stitch_index]))
 
-        range = state.stitch_ranges[current_sort_column]
-        range_middle = range.middle()
+        interval = state.stitch_intervals[current_sort_column]
+        interval_middle = interval.middle()
 
-        left_split_point = max(0, _binary_search(left_rows, left_stitch_index, range_middle, 0, len(left_rows)))
-        right_split_point = max(0, _binary_search(right_rows, right_stitch_index, range_middle, 0, len(right_rows)))
+        left_split_point = max(0, _binary_search(left_rows, left_stitch_index, interval_middle, 0, len(left_rows)))
+        right_split_point = max(0, _binary_search(right_rows, right_stitch_index, interval_middle, 0, len(right_rows)))
 
         left_lower = left_rows[:left_split_point]
         right_lower = right_rows[:right_split_point]
@@ -236,7 +237,7 @@ def _stitch_rec(state: StitchState, left_rows: list[MicrodataRow], right_rows: l
             _stitch_rec(
                 state.replace(
                     depth=state.depth + 1,
-                    stitch_ranges=update_at(state.stitch_ranges, current_sort_column, range.lower_half()),
+                    stitch_intervals=update_at(state.stitch_intervals, current_sort_column, interval.lower_half()),
                     next_sort_column=(current_sort_column + 1) % context.num_stitch_columns,
                     currently_sorted_by=current_sort_column,
                     remaining_sort_attempts=context.num_stitch_columns,
@@ -249,7 +250,7 @@ def _stitch_rec(state: StitchState, left_rows: list[MicrodataRow], right_rows: l
             _stitch_rec(
                 state.replace(
                     depth=state.depth + 1,
-                    stitch_ranges=update_at(state.stitch_ranges, current_sort_column, range.upper_half()),
+                    stitch_intervals=update_at(state.stitch_intervals, current_sort_column, interval.upper_half()),
                     next_sort_column=(current_sort_column + 1) % context.num_stitch_columns,
                     currently_sorted_by=current_sort_column,
                     remaining_sort_attempts=context.num_stitch_columns,
@@ -258,17 +259,17 @@ def _stitch_rec(state: StitchState, left_rows: list[MicrodataRow], right_rows: l
                 right_upper,
             )
         else:
-            next_stitch_ranges = state.stitch_ranges
+            next_stitch_intervals = state.stitch_intervals
             if len(left_lower) == 0 and len(right_lower) == 0:
-                next_stitch_ranges = update_at(state.stitch_ranges, current_sort_column, range.upper_half())
+                next_stitch_intervals = update_at(state.stitch_intervals, current_sort_column, interval.upper_half())
             elif len(left_upper) == 0 and len(right_upper) == 0:
-                next_stitch_ranges = update_at(state.stitch_ranges, current_sort_column, range.lower_half())
+                next_stitch_intervals = update_at(state.stitch_intervals, current_sort_column, interval.lower_half())
 
             # Try next column.
             _stitch_rec(
                 state.replace(
                     next_sort_column=(current_sort_column + 1) % context.num_stitch_columns,
-                    stitch_ranges=next_stitch_ranges,
+                    stitch_intervals=next_stitch_intervals,
                     currently_sorted_by=current_sort_column,
                     remaining_sort_attempts=state.remaining_sort_attempts - 1,
                 ),
@@ -308,11 +309,11 @@ def _do_stitch(
     all_columns = _locate_columns(left_combination, right_combination)
     result_rows: list[MicrodataRow] = []
 
-    root_stitch_ranges = [forest.snapped_ranges[col] for col in stitch_columns]
+    root_stitch_intervals = [forest.snapped_intervals[col] for col in stitch_columns]
 
     stitch_state = StitchState(
         depth=0,
-        stitch_ranges=root_stitch_ranges,
+        stitch_intervals=root_stitch_intervals,
         next_sort_column=0,
         currently_sorted_by=-1,
         remaining_sort_attempts=len(stitch_columns),
@@ -321,7 +322,7 @@ def _do_stitch(
             stitch_owner=stitch_owner,
             all_columns=all_columns,
             entropy_1dim=[forest.entropy_1dim[col] for col in stitch_columns],
-            stitch_max_values=[r.max for r in root_stitch_ranges],
+            stitch_max_values=[r.max for r in root_stitch_intervals],
             stitch_is_integral=[_is_integral(forest.data_converters[col].column_type) for col in stitch_columns],
             left_stitch_indexes=_find_indexes(left_combination, stitch_columns),
             right_stitch_indexes=_find_indexes(right_combination, stitch_columns),
