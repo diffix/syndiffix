@@ -61,7 +61,7 @@ def _align_length(random: Random, length: int, microtable: list[MicrodataRow]) -
         return microtable_copy
 
 
-def _find_indexes(subset: Iterable[ColumnId], superset: Sequence[ColumnId]) -> list[ColumnIndex]:
+def _find_indexes(subset: Sequence[ColumnId], superset: Sequence[ColumnId]) -> list[ColumnIndex]:
     return [ColumnIndex(superset.index(c)) if c in superset else ColumnIndex(-1) for c in subset]
 
 
