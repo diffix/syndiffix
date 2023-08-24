@@ -2,7 +2,7 @@ import hashlib
 import math
 from dataclasses import dataclass, field
 
-from syndiffix.common import *
+from .common import *
 
 # ----------------------------------------------------------------
 # Noise
@@ -42,7 +42,7 @@ def _mix_seed(step_name: str, seed: Hash) -> Hash:
     return _hash_string(step_name) ^ seed
 
 
-def _generate_noise(salt: bytes, step_name: str, sd: float, noise_layers: list[Hash]) -> float:
+def _generate_noise(salt: bytes, step_name: str, sd: float, noise_layers: Hashes) -> float:
     noise = 0.0
     for layer_seed in noise_layers:
         noise += _random_normal(sd, _mix_seed(step_name, _crypto_hash_salted_seed(salt, layer_seed)))
@@ -62,7 +62,7 @@ def is_low_count(salt: bytes, params: SuppressionParams, aid_trackers: list[tupl
         if count < params.low_threshold:
             return True
         else:
-            noise = _generate_noise(salt, "suppress", params.layer_sd, [seed])
+            noise = _generate_noise(salt, "suppress", params.layer_sd, (seed,))
 
             # `low_mean_gap` is the number of standard deviations between `low_threshold` and desired mean.
             mean = params.low_mean_gap * params.layer_sd + params.low_threshold
@@ -85,5 +85,5 @@ def count_multiple_contributions(context: AnonymizationParams, contributions: li
 
 def count_single_contributions(context: AnonymizationContext, count: int, seed: Hash) -> int:
     params = context.anonymization_params
-    noise = _generate_noise(params.salt, "noise", params.layer_noise_sd, [context.bucket_seed, seed])
+    noise = _generate_noise(params.salt, "noise", params.layer_noise_sd, (context.bucket_seed, seed))
     return round(count + noise)

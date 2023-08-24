@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass, replace
 from random import Random
-from typing import Any, Callable
+from typing import Any, Callable, Sequence
 
 from ..common import *
 from ..interval import Interval
@@ -61,7 +61,7 @@ def _align_length(random: Random, length: int, microtable: list[MicrodataRow]) -
         return microtable_copy
 
 
-def _find_indexes(subset: list[ColumnId], superset: list[ColumnId]) -> list[ColumnIndex]:
+def _find_indexes(subset: Sequence[ColumnId], superset: Sequence[ColumnId]) -> list[ColumnIndex]:
     return [ColumnIndex(superset.index(c)) if c in superset else ColumnIndex(-1) for c in subset]
 
 
@@ -332,7 +332,7 @@ def _do_stitch(
 
     _stitch_rec(stitch_state, left_rows, right_rows)
 
-    return result_rows, [c.column_id for c in all_columns]
+    return result_rows, tuple(c.column_id for c in all_columns)
 
 
 def _do_patch(
@@ -356,7 +356,7 @@ def _do_patch(
         for left_row, right_row in zip(left_rows, right_rows)
     ]
 
-    all_columns_ids = [c.column_id for c in all_columns]
+    all_columns_ids = tuple(c.column_id for c in all_columns)
     return all_rows, all_columns_ids
 
 

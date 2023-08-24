@@ -1,9 +1,14 @@
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from enum import Enum, unique
+from itertools import combinations
+from typing import NewType, TypeVar, cast
 
 Hash = int
+Hashes = tuple[Hash, ...]
+
 Value = int | float | str | bool | None
-Row = list[Value]
+Row = tuple[Value, ...]
 
 
 @unique
@@ -21,7 +26,7 @@ class Column:
     type: ColumnType
 
 
-Columns = list[Column]
+Columns = tuple[Column]
 
 
 @dataclass
@@ -51,7 +56,7 @@ class BucketizationParams:
 
 @dataclass
 class AnonymizationParams:
-    aid_columns: list[str] = field(default_factory=list)
+    aid_columns: tuple[str, ...] = field(default_factory=tuple)
     salt: bytes = b""
     low_count_params: SuppressionParams = SuppressionParams()
     outlier_count: FlatteningInterval = FlatteningInterval()
@@ -63,3 +68,20 @@ class AnonymizationParams:
 class AnonymizationContext:
     bucket_seed: Hash
     anonymization_params: AnonymizationParams
+
+
+# Global index of a column.
+ColumnId = NewType("ColumnId", int)
+
+Combination = tuple[ColumnId, ...]
+
+
+def generate_combinations(k: int, n: int) -> Iterable[Combination]:
+    return cast(Iterable[Combination], combinations(range(n), k))
+
+
+T = TypeVar("T")
+
+
+def get_items_combination(combination: Combination, items: tuple[T, ...]) -> tuple[T, ...]:
+    return tuple(items[index] for index in combination)

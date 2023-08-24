@@ -1,6 +1,6 @@
 [tool.flake8]
 max-line-length = 120
-ignore = ["F403", "F405"] # allow star imports
+ignore = ["F403", "F405", "W503"] # allow star imports and break before binary operator
 
 [tool.black]
 line-length = 120

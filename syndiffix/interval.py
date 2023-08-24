@@ -4,7 +4,7 @@ import math
 from dataclasses import dataclass
 
 
-@dataclass(frozen=True)
+@dataclass()
 class Interval:
     # Notice: this won't work for integer values bigger than 2^53 because of floating point limitations.
     min: float
@@ -47,8 +47,12 @@ class Interval:
     def overlaps(self, interval: Interval) -> bool:
         return interval.min < self.max and interval.max > self.min
 
+    def expand(self, value: float) -> None:
+        self.min = min(value, self.min)
+        self.max = max(value, self.max)
 
-Intervals = list[Interval]
+
+Intervals = tuple[Interval, ...]
 
 
 def _next_pow2(x: float) -> float:
@@ -68,7 +72,3 @@ def snap_interval(interval: Interval) -> Interval:
         return snap_interval(Interval(aligned_min, interval.max))
     else:
         return Interval(aligned_min, aligned_min + snapped_size)
-
-
-def expand_interval(interval: Interval, value: float) -> Interval:
-    return Interval(min(value, interval.min), max(value, interval.max))
