@@ -116,17 +116,35 @@ def _generate_float(interval: Interval) -> float:
     return _non_sticky_rng.uniform(interval.min, interval.max)
 
 
-def _microdata_generator(
-    intervals: list[Interval], convertors: list[DataConvertor]
+def _generate(interval: Interval, convertor: DataConvertor, null_mapping: float) -> MicrodataValue:
+    return convertor.from_interval(interval) if interval.min != null_mapping else (None, null_mapping)
+
+
+def _microdata_row_generator(
+    intervals: list[Interval], convertors: list[DataConvertor], null_mappings: list[float]
 ) -> Generator[MicrodataRow, None, None]:
     assert len(intervals) == len(convertors)
+    assert len(intervals) == len(null_mappings)
     while True:
-        yield [c.from_interval(i) for i, c in zip(intervals, convertors)]
+        yield [_generate(i, c, nm) for i, c, nm in zip(intervals, convertors, null_mappings)]
 
 
-def generate_microdata(buckets: list[Bucket], convertors: list[DataConvertor]) -> list[MicrodataRow]:
+def get_null_mapping(interval: Interval) -> float:
+    if interval.max > 0:
+        return 2 * interval.max
+    elif interval.min < 0:
+        return 2 * interval.min
+    else:
+        return 1.0
+
+
+def generate_microdata(
+    buckets: list[Bucket], convertors: list[DataConvertor], null_mappings: list[float]
+) -> list[MicrodataRow]:
     microdata_rows: list[MicrodataRow] = []
     for bucket in buckets:
-        microdata_rows.extend(islice(_microdata_generator(bucket.intervals, convertors), bucket.count))
+        microdata_rows.extend(
+            islice(_microdata_row_generator(bucket.intervals, convertors, null_mappings), bucket.count)
+        )
 
     return microdata_rows
