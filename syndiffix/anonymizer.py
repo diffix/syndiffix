@@ -1,6 +1,7 @@
 import hashlib
 import math
 from dataclasses import dataclass, field
+from typing import cast
 
 from .common import *
 
@@ -33,9 +34,17 @@ def _crypto_hash_salted_seed(salt: bytes, seed: Hash) -> Hash:
     return int.from_bytes(hash[:8], "little")
 
 
+def _hash_bytes(b: bytes) -> Hash:
+    hash = hashlib.blake2b(b, digest_size=8).digest()
+    return int.from_bytes(hash, "little")
+
+
 def _hash_string(s: str) -> Hash:
-    hash = hashlib.md5(s.encode()).digest()
-    return int.from_bytes(hash[:8], "little")
+    return _hash_bytes(s.encode())
+
+
+def _hash_int(i: int) -> Hash:
+    return _hash_bytes(i.to_bytes(8, "little"))
 
 
 def _mix_seed(step_name: str, seed: Hash) -> Hash:
@@ -52,6 +61,17 @@ def _generate_noise(salt: bytes, step_name: str, sd: float, noise_layers: Hashes
 # ----------------------------------------------------------------
 # Public API
 # ----------------------------------------------------------------
+
+
+def hash_aid(aid: object) -> Hash:
+    if aid is None or aid == "":
+        return 0
+    elif isinstance(aid, int):
+        return _hash_int(cast(int, aid))
+    elif isinstance(aid, str):
+        return _hash_string(cast(str, aid))
+    else:
+        raise NotImplementedError("Unsupported AID type!")
 
 
 # Returns whether any of the AID value sets has a low count.
