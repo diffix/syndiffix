@@ -79,7 +79,7 @@ Combination = tuple[ColumnId, ...]
 
 
 def generate_combinations(k: int, n: int) -> Iterable[Combination]:
-    return cast(Iterable[Combination], combinations(range(n), k))
+    return cast(Iterable[Combination], combinations(range(n), k) if k > 0 else [])
 
 
 T = TypeVar("T")
