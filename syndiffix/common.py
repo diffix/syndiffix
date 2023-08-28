@@ -4,9 +4,10 @@ from enum import Enum, unique
 from itertools import combinations
 from typing import NewType, TypeVar, cast
 
+import numpy as np
 import pandas as pd
 
-Hash = int
+Hash = np.uint64
 Hashes = tuple[Hash, ...]
 
 Value = int | float | str | bool | pd.Timestamp | None
@@ -28,7 +29,7 @@ class Column:
     type: ColumnType
 
 
-Columns = tuple[Column]
+Columns = tuple[Column, ...]
 
 
 @dataclass
@@ -79,7 +80,7 @@ Combination = tuple[ColumnId, ...]
 
 
 def generate_combinations(k: int, n: int) -> Iterable[Combination]:
-    return cast(Iterable[Combination], combinations(range(n), k))
+    return cast(Iterable[Combination], combinations(range(n), k) if k > 0 else [])
 
 
 T = TypeVar("T")

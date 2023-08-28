@@ -1,6 +1,7 @@
 import hashlib
 import math
 from dataclasses import dataclass, field
+from typing import cast
 
 from .common import *
 
@@ -18,24 +19,32 @@ from .common import *
 def _random_uniform(interval: FlatteningInterval, seed: Hash) -> int:
     # While using modulo to bound values produces biased output, we are using very small ranges
     # (typically less than 10), for which the bias is insignificant.
-    return seed % (interval.upper - interval.lower + 1) + interval.lower
+    return int(seed) % (interval.upper - interval.lower + 1) + interval.lower
 
 
 def _random_normal(sd: float, seed: Hash) -> float:
-    u1 = (seed & 0x7FFFFFFF) / 0x7FFFFFFF
-    u2 = ((seed >> 32) & 0x7FFFFFFF) / 0x7FFFFFFF
+    u1 = (int(seed) & 0x7FFFFFFF) / 0x7FFFFFFF
+    u2 = ((int(seed) >> 32) & 0x7FFFFFFF) / 0x7FFFFFFF
     normal = math.sqrt(-2.0 * math.log(u1)) * math.sin(2.0 * math.pi * u2)
     return sd * normal
 
 
 def _crypto_hash_salted_seed(salt: bytes, seed: Hash) -> Hash:
-    hash = hashlib.sha256(salt + seed.to_bytes(8, "little")).digest()
-    return int.from_bytes(hash[:8], "little")
+    hash = hashlib.sha256(salt + seed.tobytes()).digest()
+    return Hash(int.from_bytes(hash[:8], "little"))
+
+
+def _hash_bytes(b: bytes) -> Hash:
+    hash = hashlib.blake2b(b, digest_size=8).digest()
+    return Hash(int.from_bytes(hash, "little"))
 
 
 def _hash_string(s: str) -> Hash:
-    hash = hashlib.md5(s.encode()).digest()
-    return int.from_bytes(hash[:8], "little")
+    return _hash_bytes(s.encode())
+
+
+def _hash_int(i: int) -> Hash:
+    return _hash_bytes(i.to_bytes(8, "little"))
 
 
 def _mix_seed(step_name: str, seed: Hash) -> Hash:
@@ -52,6 +61,17 @@ def _generate_noise(salt: bytes, step_name: str, sd: float, noise_layers: Hashes
 # ----------------------------------------------------------------
 # Public API
 # ----------------------------------------------------------------
+
+
+def hash_aid(aid: object) -> Hash:
+    if aid is None or aid == "":
+        return Hash(0)
+    elif isinstance(aid, int):
+        return _hash_int(cast(int, aid))
+    elif isinstance(aid, str):
+        return _hash_string(cast(str, aid))
+    else:
+        raise NotImplementedError("Unsupported AID type!")
 
 
 # Returns whether any of the AID value sets has a low count.

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import NewType, cast
+from typing import NewType, Union, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -17,7 +17,7 @@ RowId = NewType("RowId", int)
 @dataclass(frozen=True)
 class Context:
     combination: Combination
-    aid_data: npt.NDArray[np.int64]
+    aid_data: npt.NDArray[Hash]
     data: npt.NDArray[np.float64]
     anonymization_context: AnonymizationContext
     bucketization_params: BucketizationParams
@@ -31,7 +31,7 @@ class Context:
         return get_items_combination(self.combination, self.data[row])
 
 
-Subnodes = tuple["Node" | None, ...]
+Subnodes = tuple[Union["Node", None], ...]
 
 
 class Node(ABC):
@@ -91,7 +91,7 @@ class Node(ABC):
 
 class Leaf(Node):
     def __init__(self, context: Context, subnodes: Subnodes, snapped_intervals: Intervals, initial_row: RowId):
-        actual_intervals = tuple(Interval(value, value) for value in self.context.get_values(initial_row))
+        actual_intervals = tuple(Interval(value, value) for value in context.get_values(initial_row))
         super().__init__(context, subnodes, snapped_intervals, actual_intervals)
         self.rows = [initial_row]
 

@@ -35,7 +35,7 @@ class IRowCounter(ABC):
 class UniqueAidCounter(IEntityCounter, IRowCounter):
     def __init__(self) -> None:
         self.real_count = 0
-        self.seed = 0
+        self.seed = Hash(0)
 
     def add(self, aids: Hashes) -> None:
         assert len(aids) == 1
