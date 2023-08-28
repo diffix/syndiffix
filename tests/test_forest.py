@@ -1,6 +1,6 @@
 from syndiffix.common import *
-from syndiffix.forest import *
 from syndiffix.counters import UniqueAidCountersFactory
+from syndiffix.forest import *
 
 
 def test_aid_hashing() -> None:
