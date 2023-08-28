@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import NewType, cast
+from typing import NewType, cast, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -31,7 +31,7 @@ class Context:
         return get_items_combination(self.combination, self.data[row])
 
 
-Subnodes = tuple["Node" | None, ...]
+Subnodes = tuple[Union["Node", None], ...]
 
 
 class Node(ABC):
