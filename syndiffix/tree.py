@@ -17,7 +17,7 @@ RowId = NewType("RowId", int)
 @dataclass(frozen=True)
 class Context:
     combination: Combination
-    aid_data: npt.NDArray[np.int64]
+    aid_data: npt.NDArray[Hash]
     data: npt.NDArray[np.float64]
     anonymization_context: AnonymizationContext
     bucketization_params: BucketizationParams

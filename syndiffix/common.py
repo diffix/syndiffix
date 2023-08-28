@@ -4,7 +4,9 @@ from enum import Enum, unique
 from itertools import combinations
 from typing import NewType, TypeVar, cast
 
-Hash = int
+import numpy as np
+
+Hash = np.uint64
 Hashes = tuple[Hash, ...]
 
 Value = int | float | str | bool | None
