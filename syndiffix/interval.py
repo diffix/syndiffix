@@ -10,6 +10,10 @@ class Interval:
     min: float
     max: float
 
+    def __post_init__(self) -> None:
+        if self.min > self.max:
+            raise TypeError("Interval.min > Interval.max")
+
     def size(self) -> float:
         return self.max - self.min
 

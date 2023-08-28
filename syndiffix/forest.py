@@ -7,6 +7,7 @@ from pandas.api.types import is_float_dtype, is_integer_dtype, is_string_dtype
 
 from .common import *
 from .interval import Interval, snap_interval
+from .microdata import get_null_mapping
 from .tree import *
 
 
@@ -30,6 +31,7 @@ class Forest:
         assert len(aids.columns) >= 1
         for dtype in aids.dtypes:
             assert is_string_dtype(dtype) or is_integer_dtype(dtype)
+        # TODO: use `microdata.py` to convert to float instead and manage `DataConvertor`s for generation
         for dtype in data.dtypes:
             assert is_float_dtype(dtype)
         # TODO: Hash AID values.
@@ -37,9 +39,13 @@ class Forest:
         self.data: npt.NDArray[np.float_] = data.to_numpy()
         self.dimensions = len(data.columns)
 
-        self.snapped_intervals = tuple(
-            snap_interval(Interval(data.iloc[i].min(), data.iloc[i].max())) for i in range(self.dimensions)
-        )
+        actual_intervals = tuple(Interval(data.iloc[i].min(), data.iloc[i].max()) for i in range(self.dimensions))
+        # TODO: replace nulls in actual data
+        self.null_mappings = tuple(get_null_mapping(interval) for interval in actual_intervals)
+        for interval, null_mapping in zip(actual_intervals, self.null_mappings):
+            interval.expand(null_mapping)
+        self.snapped_intervals = tuple(snap_interval(interval) for interval in actual_intervals)
+
         self.tree_cache: dict[Combination, Node] = {}
 
         # We need to flatten uni-dimensional trees, by pushing the root down as long as one of its halves

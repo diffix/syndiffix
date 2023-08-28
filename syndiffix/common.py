@@ -4,10 +4,12 @@ from enum import Enum, unique
 from itertools import combinations
 from typing import NewType, TypeVar, cast
 
+import pandas as pd
+
 Hash = int
 Hashes = tuple[Hash, ...]
 
-Value = int | float | str | bool | None
+Value = int | float | str | bool | pd.Timestamp | None
 Row = tuple[Value, ...]
 
 
