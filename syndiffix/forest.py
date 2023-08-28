@@ -5,6 +5,7 @@ import numpy.typing as npt
 from pandas import DataFrame
 from pandas.api.types import is_float_dtype, is_integer_dtype, is_string_dtype
 
+from .anonymizer import hash_aid
 from .common import *
 from .interval import Interval, snap_interval
 from .tree import *
@@ -32,9 +33,11 @@ class Forest:
             assert is_string_dtype(dtype) or is_integer_dtype(dtype)
         for dtype in data.dtypes:
             assert is_float_dtype(dtype)
-        # TODO: Hash AID values.
-        self.aid_data: npt.NDArray[np.int64] = aids.to_numpy()
-        self.data: npt.NDArray[np.float_] = data.to_numpy()
+
+        # Hash and store AID values.
+        self.aid_data: npt.NDArray[np.uint64] = aids.applymap(hash_aid).to_numpy(Hash)
+
+        self.data: npt.NDArray[np.float_] = data.to_numpy(np.float_)
         self.dimensions = len(data.columns)
 
         self.snapped_intervals = tuple(
