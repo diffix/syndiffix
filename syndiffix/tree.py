@@ -91,7 +91,7 @@ class Node(ABC):
 
 class Leaf(Node):
     def __init__(self, context: Context, subnodes: Subnodes, snapped_intervals: Intervals, initial_row: RowId):
-        actual_intervals = tuple(Interval(value, value) for value in self.context.get_values(initial_row))
+        actual_intervals = tuple(Interval(value, value) for value in context.get_values(initial_row))
         super().__init__(context, subnodes, snapped_intervals, actual_intervals)
         self.rows = [initial_row]
 
