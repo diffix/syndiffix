@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from itertools import islice
 from random import Random
-from typing import Generator, Iterable, Literal
+from typing import Generator, Iterable, Literal, Set, cast
 
 import numpy as np
 import pandas as pd
@@ -92,24 +92,24 @@ class TimestampConvertor(DataConvertor):
 
 class StringConvertor(DataConvertor):
     def __init__(self, values: Iterable[Value]) -> None:
-        not_none = [value for value in values if value is not None]
-        for value in not_none:
+        unique_values = set(values)
+        unique_values.discard(None)
+        for value in unique_values:
             assert isinstance(value, str)
-
-        self.value_map: list[Value] = list(set(not_none))
-        self.value_map.sort()
+        self.value_map = sorted(cast(Set[str], unique_values))
 
     def column_type(self) -> ColumnType:
         return ColumnType.STRING
 
     def to_float(self, value: Value) -> float:
+        value = cast(str, value)
         return float(self.value_map.index(value))
 
     def from_interval(self, interval: Interval) -> MicrodataValue:
         if interval.is_singularity():
             return (self.value_map[int(interval.min)], interval.min)
         else:
-            return ("*", _generate_float(interval))
+            return ("*", round(_generate_float(interval), 0))
 
 
 def _generate_float(interval: Interval) -> float:

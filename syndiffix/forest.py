@@ -31,6 +31,7 @@ class Forest:
         assert len(aids.columns) >= 1
         for dtype in aids.dtypes:
             assert is_string_dtype(dtype) or is_integer_dtype(dtype)
+        # TODO: use `microdata.py` to convert to float instead and manage `DataConvertor`s for generation
         for dtype in data.dtypes:
             assert is_float_dtype(dtype)
         # TODO: Hash AID values.
@@ -39,6 +40,7 @@ class Forest:
         self.dimensions = len(data.columns)
 
         actual_intervals = tuple(Interval(data.iloc[i].min(), data.iloc[i].max()) for i in range(self.dimensions))
+        # TODO: replace nulls in actual data
         self.null_mappings = tuple(get_null_mapping(interval) for interval in actual_intervals)
         for interval, null_mapping in zip(actual_intervals, self.null_mappings):
             interval.expand(null_mapping)
