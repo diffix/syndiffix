@@ -28,7 +28,7 @@ class Column:
     type: ColumnType
 
 
-Columns = tuple[Column]
+Columns = tuple[Column, ...]
 
 
 @dataclass
