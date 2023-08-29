@@ -1,6 +1,50 @@
+import pytest
+
 from syndiffix.common import *
 from syndiffix.counters import UniqueAidCountersFactory
 from syndiffix.forest import *
+
+
+def test_column_type_check() -> None:
+    with pytest.raises(AssertionError):
+        Forest(
+            AnonymizationContext(Hash(0), AnonymizationParams()),
+            BucketizationParams(),
+            (Column("data", ColumnType.INTEGER),),
+            UniqueAidCountersFactory(),
+            DataFrame({"aid": ["a"]}),
+            # Data needs to be preprocessed with `microdata.apply_convertors` first, so this throws.
+            DataFrame({"data": [-2]}),
+        ),
+
+
+def test_null_mappings() -> None:
+    forest = Forest(
+        AnonymizationContext(Hash(0), AnonymizationParams()),
+        BucketizationParams(),
+        (Column("data1", ColumnType.INTEGER), Column("data2", ColumnType.INTEGER)),
+        UniqueAidCountersFactory(),
+        DataFrame({"aid": ["a", None, 1, 2, 3]}),
+        DataFrame({"data1": [-2.0, 0.0, -1.0, None, np.NaN], "data2": [0.0, 0.0, 6.0, None, np.NaN]}),
+    )
+
+    assert forest.null_mappings == (-4.0, 12.0)
+    assert forest.data[:, 0].tolist() == [-2.0, 0.0, -1.0, -4.0, -4.0]
+    assert forest.data[:, 1].tolist() == [0.0, 0.0, 6.0, 12.0, 12.0]
+
+
+def test_null_mappings_all_nan_column() -> None:
+    forest = Forest(
+        AnonymizationContext(Hash(0), AnonymizationParams()),
+        BucketizationParams(),
+        (Column("data", ColumnType.INTEGER),),
+        UniqueAidCountersFactory(),
+        DataFrame({"aid": ["a", 1]}),
+        DataFrame({"data": [np.NaN, np.NaN]}),
+    )
+
+    assert forest.null_mappings == (1.0,)
+    assert forest.data[:, 0].tolist() == [1.0, 1.0]
 
 
 def test_aid_hashing() -> None:

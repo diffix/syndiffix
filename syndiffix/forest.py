@@ -32,22 +32,25 @@ class Forest:
         assert len(aids.columns) >= 1
         for dtype in aids.dtypes:
             assert is_string_dtype(dtype) or is_integer_dtype(dtype)
-        # TODO: use `microdata.py` to convert to float instead and manage `DataConvertor`s for generation
+        # We assume `microdata.apply_convertors` has been called on the data.
         for dtype in data.dtypes:
             assert is_float_dtype(dtype)
 
-        # Hash and store AID values.
-        self.aid_data: npt.NDArray[np.uint64] = aids.applymap(hash_aid).to_numpy(Hash)
-
-        self.data: npt.NDArray[np.float_] = data.to_numpy(np.float_)
         self.dimensions = len(data.columns)
 
-        actual_intervals = tuple(Interval(data.iloc[i].min(), data.iloc[i].max()) for i in range(self.dimensions))
-        # TODO: replace nulls in actual data
+        actual_intervals = tuple(Interval(data.iloc[:, i].min(), data.iloc[:, i].max()) for i in range(self.dimensions))
         self.null_mappings = tuple(get_null_mapping(interval) for interval in actual_intervals)
         for interval, null_mapping in zip(actual_intervals, self.null_mappings):
             interval.expand(null_mapping)
         self.snapped_intervals = tuple(snap_interval(interval) for interval in actual_intervals)
+
+        # Hash and store AID values.
+        self.aid_data: npt.NDArray[np.uint64] = aids.applymap(hash_aid).to_numpy(Hash)
+        # Arrange data in a numpy array, applying the null mappings to missing values.
+        # `DataFrame.fillna` doesn't seem to accept the fill values by index, must build dict.
+        null_mapping_dict = {c.name: self.null_mappings[i] for i, c in enumerate(columns)}
+        data.fillna(null_mapping_dict, axis=0, inplace=True)
+        self.data: npt.NDArray[np.float_] = data.to_numpy(np.float_)
 
         self.tree_cache: dict[Combination, Node] = {}
 

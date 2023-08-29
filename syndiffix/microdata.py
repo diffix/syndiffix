@@ -1,10 +1,18 @@
 from abc import ABC, abstractmethod
 from itertools import islice
+from os.path import commonprefix
 from random import Random
 from typing import Generator, Iterable, Literal, Set, cast
 
 import numpy as np
 import pandas as pd
+from pandas.api.types import (
+    is_bool_dtype,
+    is_datetime64_dtype,
+    is_float_dtype,
+    is_integer_dtype,
+    is_string_dtype,
+)
 
 from .bucket import Bucket
 from .common import ColumnType, Value
@@ -41,7 +49,7 @@ class BooleanConvertor(DataConvertor):
         return ColumnType.BOOLEAN
 
     def to_float(self, value: Value) -> float:
-        assert isinstance(value, np.bool_)
+        assert isinstance(value, bool) or isinstance(value, np.bool_)
         return 1.0 if value else 0.0
 
     def from_interval(self, interval: Interval) -> MicrodataValue:
@@ -54,7 +62,7 @@ class RealConvertor(DataConvertor):
         return ColumnType.REAL
 
     def to_float(self, value: Value) -> float:
-        assert isinstance(value, np.floating)
+        assert isinstance(value, float) or isinstance(value, np.floating)
         return value
 
     def from_interval(self, interval: Interval) -> MicrodataValue:
@@ -67,7 +75,7 @@ class IntegerConvertor(DataConvertor):
         return ColumnType.INTEGER
 
     def to_float(self, value: Value) -> float:
-        assert isinstance(value, np.integer)
+        assert isinstance(value, int) or isinstance(value, np.integer)
         return float(value)
 
     def from_interval(self, interval: Interval) -> MicrodataValue:
@@ -92,10 +100,10 @@ class TimestampConvertor(DataConvertor):
 
 class StringConvertor(DataConvertor):
     def __init__(self, values: Iterable[Value]) -> None:
-        unique_values = set(values)
-        unique_values.discard(None)
+        unique_values = set(v for v in values if not pd.isna(v))
         for value in unique_values:
-            assert isinstance(value, str)
+            if not isinstance(value, str):
+                raise TypeError(f"Not a `str` object in a string dtype column: {value}.")
         self.value_map = sorted(cast(Set[str], unique_values))
 
     def column_type(self) -> ColumnType:
@@ -109,7 +117,16 @@ class StringConvertor(DataConvertor):
         if interval.is_singularity():
             return (self.value_map[int(interval.min)], interval.min)
         else:
-            return ("*", round(_generate_float(interval), 0))
+            return self._map_interval(interval)
+
+    def _map_interval(self, interval: Interval) -> MicrodataValue:
+        # Finds a common prefix of the strings encoded as interval boundaries and appends "*"
+        # and a random number to ensure that the count of distinct values approximates that in the original data.
+        min_value = self.value_map[int(interval.min)]
+        max_value = self.value_map[min(int(interval.max), len(self.value_map) - 1)]
+        value = int(_generate_float(interval))
+
+        return (commonprefix([min_value, max_value]) + "*" + str(value), float(value))
 
 
 def _generate_float(interval: Interval) -> float:
@@ -136,6 +153,41 @@ def get_null_mapping(interval: Interval) -> float:
         return 2 * interval.min
     else:
         return 1.0
+
+
+def _get_convertor(df: pd.DataFrame, column: str) -> DataConvertor:
+    dtype = df.dtypes[column]
+    if is_integer_dtype(dtype):
+        return IntegerConvertor()
+    elif is_float_dtype(dtype):
+        return RealConvertor()
+    elif is_bool_dtype(dtype):
+        return BooleanConvertor()
+    elif is_datetime64_dtype(dtype):
+        return TimestampConvertor()
+    elif is_string_dtype(dtype):
+        # Note above is `True` for `object` dtype, but `StringConvertor` will assert values are `str`.
+        return StringConvertor(df[column])
+    else:
+        raise TypeError(f"Dtype {dtype} is not supported.")
+
+
+def get_convertors(df: pd.DataFrame) -> list[DataConvertor]:
+    return [_get_convertor(df, column) for column in df.columns]
+
+
+def _apply_convertor(value: Value, convertor: DataConvertor) -> float:
+    if pd.isna(value):
+        return np.NaN
+    else:
+        return convertor.to_float(value)
+
+
+def apply_convertors(convertors: list[DataConvertor], df: pd.DataFrame) -> pd.DataFrame:
+    for i, column in enumerate(df):
+        df[column] = df[column].apply(_apply_convertor, convertor=convertors[i])
+
+    return df
 
 
 def generate_microdata(
