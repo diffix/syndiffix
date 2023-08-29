@@ -33,6 +33,20 @@ def test_null_mappings() -> None:
     assert forest.data[:, 1].tolist() == [0.0, 0.0, 6.0, 12.0, 12.0]
 
 
+def test_null_mappings_all_nan_column() -> None:
+    forest = Forest(
+        AnonymizationContext(Hash(0), AnonymizationParams()),
+        BucketizationParams(),
+        (Column("data", ColumnType.INTEGER),),
+        UniqueAidCountersFactory(),
+        DataFrame({"aid": ["a", 1]}),
+        DataFrame({"data": [np.NaN, np.NaN]}),
+    )
+
+    assert forest.null_mappings == (1.0,)
+    assert forest.data[:, 0].tolist() == [1.0, 1.0]
+
+
 def test_aid_hashing() -> None:
     forest = Forest(
         AnonymizationContext(Hash(0), AnonymizationParams()),
