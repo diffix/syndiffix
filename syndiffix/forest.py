@@ -47,9 +47,10 @@ class Forest:
         # Hash and store AID values.
         self.aid_data: npt.NDArray[np.uint64] = aids.applymap(hash_aid).to_numpy(Hash)
         # Arrange data in a numpy array, applying the null mappings to missing values.
-        self.data: npt.NDArray[np.float_] = np.column_stack(
-            [data.iloc[:, i].to_numpy(np.float_, na_value=self.null_mappings[i]) for i, _ in enumerate(data.columns)]
-        )
+        # `DataFrame.fillna` doesn't seem to accept the fill values by index, must build dict.
+        null_mapping_dict = {c.name: self.null_mappings[i] for i, c in enumerate(columns)}
+        data.fillna(null_mapping_dict, axis=0, inplace=True)
+        self.data: npt.NDArray[np.float_] = data.to_numpy(np.float_)
 
         self.tree_cache: dict[Combination, Node] = {}
 

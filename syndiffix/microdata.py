@@ -169,7 +169,7 @@ def _get_convertor(df: pd.DataFrame, column: str) -> DataConvertor:
         # Note above is `True` for `object` dtype, but `StringConvertor` will assert values are `str`.
         return StringConvertor(df[column])
     else:
-        raise TypeError(f"dtype {dtype} not supported")
+        raise TypeError(f"Dtype {dtype} is not supported.")
 
 
 def get_convertors(df: pd.DataFrame) -> list[DataConvertor]:
