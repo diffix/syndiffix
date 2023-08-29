@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from itertools import islice
+from os.path import commonprefix
 from random import Random
 from typing import Generator, Iterable, Literal, Set, cast
 
@@ -117,7 +118,16 @@ class StringConvertor(DataConvertor):
         if interval.is_singularity():
             return (self.value_map[int(interval.min)], interval.min)
         else:
-            return ("*", round(_generate_float(interval), 0))
+            return self._map_interval(interval)
+
+    def _map_interval(self, interval: Interval) -> MicrodataValue:
+        # Finds a common prefix of the strings encoded as interval boundaries and appends "*"
+        # and a random number to ensure that the count of distinct values approximates that in the original data.
+        min_value = self.value_map[int(interval.min)]
+        max_value = self.value_map[min(int(interval.max), len(self.value_map) - 1)]
+        value = int(_generate_float(interval))
+
+        return (commonprefix([min_value, max_value]) + "*" + str(value), float(value))
 
 
 def _generate_float(interval: Interval) -> float:

@@ -96,16 +96,18 @@ def test_generates_timestamp_microdata() -> None:
 
 def test_generates_string_microdata() -> None:
     buckets = [
-        Bucket([Interval(0.0, 1.0), Interval(2.0, 2.0), Interval(3.0, 3.0)], 3),
+        Bucket([Interval(0.0, 3.0), Interval(4.0, 4.0), Interval(5.0, 5.0)], 3),
     ]
-    convertor = StringConvertor(["a", "b", "c", "d"])
+    convertor = StringConvertor(["aa", "ab", "ac", "ad", "c", "d"])
     microdata = generate_microdata(buckets, [convertor] * 3, [1234.0] * 3)
     for row in microdata:
         assert len(row) == 3
         for value in row:
             assert tuple(map(type, value)) == (str, float)
         assert (
-            row[0][MICRODATA_SYN_VALUE] == "*"
+            len(row[0][MICRODATA_SYN_VALUE]) == 3  # type: ignore
+            and "a*" in row[0][MICRODATA_SYN_VALUE]  # type: ignore
+            and row[0][MICRODATA_SYN_VALUE][2] in ["0", "1", "2", "3"]  # type: ignore
             and row[1][MICRODATA_SYN_VALUE] == "c"
             and row[2][MICRODATA_SYN_VALUE] == "d"
         )
