@@ -5,6 +5,13 @@ from typing import Generator, Iterable, Literal, Set, cast
 
 import numpy as np
 import pandas as pd
+from pandas.api.types import (
+    is_bool_dtype,
+    is_datetime64_dtype,
+    is_float_dtype,
+    is_integer_dtype,
+    is_string_dtype,
+)
 
 from .bucket import Bucket
 from .common import ColumnType, Value
@@ -41,7 +48,7 @@ class BooleanConvertor(DataConvertor):
         return ColumnType.BOOLEAN
 
     def to_float(self, value: Value) -> float:
-        assert isinstance(value, np.bool_)
+        assert isinstance(value, bool) or isinstance(value, np.bool_)
         return 1.0 if value else 0.0
 
     def from_interval(self, interval: Interval) -> MicrodataValue:
@@ -54,7 +61,7 @@ class RealConvertor(DataConvertor):
         return ColumnType.REAL
 
     def to_float(self, value: Value) -> float:
-        assert isinstance(value, np.floating)
+        assert isinstance(value, float) or isinstance(value, np.floating)
         return value
 
     def from_interval(self, interval: Interval) -> MicrodataValue:
@@ -67,7 +74,7 @@ class IntegerConvertor(DataConvertor):
         return ColumnType.INTEGER
 
     def to_float(self, value: Value) -> float:
-        assert isinstance(value, np.integer)
+        assert isinstance(value, int) or isinstance(value, np.integer)
         return float(value)
 
     def from_interval(self, interval: Interval) -> MicrodataValue:
@@ -95,7 +102,8 @@ class StringConvertor(DataConvertor):
         unique_values = set(values)
         unique_values.discard(None)
         for value in unique_values:
-            assert isinstance(value, str)
+            if not isinstance(value, str):
+                raise TypeError(f"Not a `str` object in a string dtype column: {value}.")
         self.value_map = sorted(cast(Set[str], unique_values))
 
     def column_type(self) -> ColumnType:
@@ -136,6 +144,34 @@ def get_null_mapping(interval: Interval) -> float:
         return 2 * interval.min
     else:
         return 1.0
+
+
+def _get_convertor(df: pd.DataFrame, column: str) -> DataConvertor:
+    dtype = df.dtypes[column]
+    if is_integer_dtype(dtype):
+        return IntegerConvertor()
+    elif is_float_dtype(dtype):
+        return RealConvertor()
+    elif is_bool_dtype(dtype):
+        return BooleanConvertor()
+    elif is_datetime64_dtype(dtype):
+        return TimestampConvertor()
+    elif is_string_dtype(dtype):
+        # Note above is `True` for `object` dtype, but `StringConvertor` will assert values are `str`.
+        return StringConvertor(df[column])
+    else:
+        raise TypeError(f"dtype {dtype} not supported")
+
+
+def get_convertors(df: pd.DataFrame) -> list[DataConvertor]:
+    return [_get_convertor(df, column) for column in df.columns]
+
+
+def apply_convertors(convertors: list[DataConvertor], df: pd.DataFrame) -> pd.DataFrame:
+    for i, column in enumerate(df):
+        df[column] = df[column].transform(convertors[i].to_float)
+
+    return df
 
 
 def generate_microdata(

@@ -1,4 +1,5 @@
 import pandas as pd
+import pytest
 
 from syndiffix.bucket import Bucket
 from syndiffix.interval import Interval
@@ -6,15 +7,30 @@ from syndiffix.microdata import *
 
 
 def test_casts_to_float() -> None:
-    data = pd.DataFrame({"r": [5.0], "i": [5], "b": [True], "s": ["text"], "t": [pd.Timestamp("1800-01-02")]})
-    result = list(
-        map(
-            lambda column, convertor: convertor.to_float(data.at[0, column]),
-            data,
-            [RealConvertor(), IntegerConvertor(), BooleanConvertor(), StringConvertor(["text"]), TimestampConvertor()],
-        )
-    )
-    assert result == [5.0, 5.0, 1.0, 0.0, 86400.0]
+    data = pd.DataFrame({"r": [5.0], "i": [6], "b": [True], "s": ["text"], "t": [pd.Timestamp("1800-01-02")]})
+    convertors = get_convertors(data)
+
+    results = apply_convertors(convertors, data)
+    assert results.shape == data.shape
+    assert results.values[0, :].tolist() == [5.0, 6.0, 1.0, 0.0, 86400.0]
+
+
+def test_recognizes_types() -> None:
+    data = pd.DataFrame({"r": [5.0], "i": [6], "b": [True], "s": ["text"], "t": [pd.Timestamp("1800-01-02")]})
+    convertors = get_convertors(data)
+    assert [c.column_type() for c in convertors] == [
+        ColumnType.REAL,
+        ColumnType.INTEGER,
+        ColumnType.BOOLEAN,
+        ColumnType.STRING,
+        ColumnType.TIMESTAMP,
+    ]
+
+
+def test_objects_in_dataframe_rejected() -> None:
+    data = pd.DataFrame({"o": [object()]})
+    with pytest.raises(TypeError):
+        get_convertors(data)
 
 
 def test_generates_real_microdata() -> None:
