@@ -1,3 +1,5 @@
+from io import StringIO
+
 import pandas as pd
 import pytest
 
@@ -31,6 +33,32 @@ def test_objects_in_dataframe_rejected() -> None:
     data = pd.DataFrame({"o": [object()]})
     with pytest.raises(TypeError):
         get_convertors(data)
+
+
+def test_casts_data_from_csv() -> None:
+    csv = StringIO(
+        """
+a,b,c,d,e,f,g,h,i
+1,1.5,1e-7,'50',NULL,NULL,NULL,1800-01-02,nan
+1,1.5,1e-7,'51',1.5,abc,NULL,NULL,1.5
+"""
+    )
+    data = pd.read_csv(csv, index_col=False, parse_dates=["h"])
+    results = apply_convertors(get_convertors(data), data)
+    expected = pd.DataFrame(
+        {
+            "a": [1.0, 1.0],
+            "b": [1.5, 1.5],
+            "c": [1e-7, 1e-7],
+            "d": [0.0, 1.0],
+            "e": [np.NaN, 1.5],
+            "f": [np.NaN, 0.0],
+            "g": [np.NaN, np.NaN],
+            "h": [86400.0, np.NaN],
+            "i": [np.NaN, 1.5],
+        }
+    )
+    assert results.equals(expected)
 
 
 def test_generates_real_microdata() -> None:

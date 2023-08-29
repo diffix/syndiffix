@@ -100,8 +100,7 @@ class TimestampConvertor(DataConvertor):
 
 class StringConvertor(DataConvertor):
     def __init__(self, values: Iterable[Value]) -> None:
-        unique_values = set(values)
-        unique_values.discard(None)
+        unique_values = set(v for v in values if not pd.isna(v))
         for value in unique_values:
             if not isinstance(value, str):
                 raise TypeError(f"Not a `str` object in a string dtype column: {value}.")
@@ -177,9 +176,16 @@ def get_convertors(df: pd.DataFrame) -> list[DataConvertor]:
     return [_get_convertor(df, column) for column in df.columns]
 
 
+def _apply_convertor(value: Value, convertor: DataConvertor) -> float:
+    if pd.isna(value):
+        return np.NaN
+    else:
+        return convertor.to_float(value)
+
+
 def apply_convertors(convertors: list[DataConvertor], df: pd.DataFrame) -> pd.DataFrame:
     for i, column in enumerate(df):
-        df[column] = df[column].transform(convertors[i].to_float)
+        df[column] = df[column].apply(_apply_convertor, convertor=convertors[i])
 
     return df
 

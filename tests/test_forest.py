@@ -22,14 +22,15 @@ def test_null_mappings() -> None:
     forest = Forest(
         AnonymizationContext(Hash(0), AnonymizationParams()),
         BucketizationParams(),
-        (Column("data", ColumnType.INTEGER),),
+        (Column("data1", ColumnType.INTEGER), Column("data2", ColumnType.INTEGER)),
         UniqueAidCountersFactory(),
         DataFrame({"aid": ["a", None, 1, 2, 3]}),
-        DataFrame({"data": [-2.0, 0.0, 6.0, None, np.NaN]}),
+        DataFrame({"data1": [-2.0, 0.0, -1.0, None, np.NaN], "data2": [0.0, 0.0, 6.0, None, np.NaN]}),
     )
 
-    assert forest.null_mappings == (-4.0,)
-    assert forest.data[:, 0].tolist() == [-2.0, 0.0, 6.0, -4.0, -4.0]
+    assert forest.null_mappings == (-4.0, 12.0)
+    assert forest.data[:, 0].tolist() == [-2.0, 0.0, -1.0, -4.0, -4.0]
+    assert forest.data[:, 1].tolist() == [0.0, 0.0, 6.0, 12.0, 12.0]
 
 
 def test_aid_hashing() -> None:

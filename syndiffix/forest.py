@@ -38,7 +38,7 @@ class Forest:
 
         self.dimensions = len(data.columns)
 
-        actual_intervals = tuple(Interval(data.iloc[i].min(), data.iloc[i].max()) for i in range(self.dimensions))
+        actual_intervals = tuple(Interval(data.iloc[:, i].min(), data.iloc[:, i].max()) for i in range(self.dimensions))
         self.null_mappings = tuple(get_null_mapping(interval) for interval in actual_intervals)
         for interval, null_mapping in zip(actual_intervals, self.null_mappings):
             interval.expand(null_mapping)
