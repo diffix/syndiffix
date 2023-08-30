@@ -84,6 +84,19 @@ class Node(ABC):
             self.stub_subnode_cache = is_stub_subnode  # Cache result for future tests.
             return is_stub_subnode
 
+    # Helper method for `push_down_1dim_root`.
+    # Outliers need special handling. They must:
+    #   - be added to existing leaves;
+    #   - not change the actual ranges of the nodes.
+    @abstractmethod
+    def _add_1dim_outlier_row(self, row: RowId) -> None:
+        pass
+
+    # Pushes down the root of a 1-dim tree as long as one of the children is low-count.
+    @abstractmethod
+    def push_down_1dim_root(self) -> Node:
+        pass
+
     @abstractmethod
     def add_row(self, depth: int, row: RowId) -> Node:
         pass
@@ -123,6 +136,13 @@ class Leaf(Node):
             return branch
         else:
             return self
+
+    def _add_1dim_outlier_row(self, row: RowId) -> None:
+        self.update_aids(row)
+        self.rows.append(row)
+
+    def push_down_1dim_root(self) -> Node:
+        return self
 
 
 class Branch(Node):
@@ -173,3 +193,39 @@ class Branch(Node):
         self.update_aids(row)
         self.update_actual_intervals(row)
         return self
+
+    def _add_1dim_outlier_row(self, row: RowId) -> None:
+        self.update_aids(row)
+        child_index = (
+            next(iter(self.children))
+            if len(self.children) == 1
+            else self._find_child_index(self.context.get_values(row))
+        )
+        self.children[child_index]._add_1dim_outlier_row(row)
+
+    # Returns the low-count rows, if any, from the specified child leaf of the current 1-dim branch.
+    def _get_low_count_rows_in_child(self, child_index: int) -> list[RowId] | None:
+        child = self.children.get(child_index)
+        if child is None:
+            return []
+        elif isinstance(child, Leaf):
+            low_threshold = self.context.anonymization_context.anonymization_params.low_count_params.low_threshold
+            return None if child.is_over_threshold(low_threshold) else child.rows
+        else:
+            return None
+
+    def push_down_1dim_root(self) -> Node:
+        left_lc_rows = self._get_low_count_rows_in_child(0)
+        right_lc_rows = self._get_low_count_rows_in_child(1)
+        if left_lc_rows is None and right_lc_rows is not None:
+            new_root = self.children[0].push_down_1dim_root()
+            for row in right_lc_rows:
+                new_root._add_1dim_outlier_row(row)
+            return new_root
+        elif left_lc_rows is not None and right_lc_rows is None:
+            new_root = self.children[1].push_down_1dim_root()
+            for row in left_lc_rows:
+                new_root._add_1dim_outlier_row(row)
+            return new_root
+        else:
+            return self
