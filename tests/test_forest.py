@@ -5,27 +5,30 @@ from syndiffix.counters import UniqueAidCountersFactory
 from syndiffix.forest import *
 
 
+def _create_forest(data_df: DataFrame, columns: Columns, aid_df: DataFrame | None = None) -> Forest:
+    return Forest(
+        AnonymizationContext(Hash(0), AnonymizationParams()),
+        BucketizationParams(),
+        columns,
+        UniqueAidCountersFactory(),
+        DataFrame(data_df.index) if aid_df is None else aid_df,
+        data_df,
+    )
+
+
 def test_column_type_check() -> None:
     with pytest.raises(AssertionError):
-        Forest(
-            AnonymizationContext(Hash(0), AnonymizationParams()),
-            BucketizationParams(),
-            (Column("data", ColumnType.INTEGER),),
-            UniqueAidCountersFactory(),
-            DataFrame({"aid": ["a"]}),
+        _create_forest(
             # Data needs to be preprocessed with `microdata.apply_convertors` first, so this throws.
             DataFrame({"data": [-2]}),
+            (Column("data", ColumnType.INTEGER),),
         )
 
 
 def test_null_mappings() -> None:
-    forest = Forest(
-        AnonymizationContext(Hash(0), AnonymizationParams()),
-        BucketizationParams(),
-        (Column("data1", ColumnType.INTEGER), Column("data2", ColumnType.INTEGER)),
-        UniqueAidCountersFactory(),
-        DataFrame({"aid": ["a", None, 1, 2, 3]}),
+    forest = _create_forest(
         DataFrame({"data1": [-2.0, 0.0, -1.0, None, np.NaN], "data2": [0.0, 0.0, 6.0, None, np.NaN]}),
+        (Column("data1", ColumnType.INTEGER), Column("data2", ColumnType.INTEGER)),
     )
 
     assert forest.null_mappings == (-4.0, 12.0)
@@ -34,13 +37,9 @@ def test_null_mappings() -> None:
 
 
 def test_null_mappings_all_nan_column() -> None:
-    forest = Forest(
-        AnonymizationContext(Hash(0), AnonymizationParams()),
-        BucketizationParams(),
-        (Column("data", ColumnType.INTEGER),),
-        UniqueAidCountersFactory(),
-        DataFrame({"aid": ["a", 1]}),
+    forest = _create_forest(
         DataFrame({"data": [np.NaN, np.NaN]}),
+        (Column("data", ColumnType.INTEGER),),
     )
 
     assert forest.null_mappings == (1.0,)
@@ -48,13 +47,10 @@ def test_null_mappings_all_nan_column() -> None:
 
 
 def test_aid_hashing() -> None:
-    forest = Forest(
-        AnonymizationContext(Hash(0), AnonymizationParams()),
-        BucketizationParams(),
-        (Column("data", ColumnType.INTEGER),),
-        UniqueAidCountersFactory(),
-        DataFrame({"aid": ["a", None, 1]}),
+    forest = _create_forest(
         DataFrame({"data": [0.0, 0.0, 0.0]}),
+        (Column("data", ColumnType.INTEGER),),
+        aid_df=DataFrame({"aid": ["a", None, 1]}),
     )
     assert forest.aid_data.tolist() == [
         [Hash(3405396810240292928)],
@@ -88,13 +84,7 @@ def test_ranges_anonymization() -> None:
         [-5.0, 1.0],
     ]
     df = DataFrame(data, columns=["col1", "col2"])
-    forest = Forest(
-        AnonymizationContext(Hash(0), AnonymizationParams()),
-        BucketizationParams(),
-        (Column("col1", ColumnType.INTEGER), Column("col2", ColumnType.INTEGER)),
-        UniqueAidCountersFactory(),
-        DataFrame(df.index),
-        df,
-    )
+    columns = (Column("col1", ColumnType.INTEGER), Column("col2", ColumnType.INTEGER))
+    forest = _create_forest(df, columns)
 
     assert forest.snapped_intervals == (Interval(0.0, 2.0), Interval(0.0, 32.0))
