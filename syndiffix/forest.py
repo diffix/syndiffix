@@ -59,8 +59,7 @@ class Forest:
         snapped_intervals = list(self.snapped_intervals)
         for i in range(self.dimensions):
             combination = (ColumnId(i),)
-            tree = self._build_tree(combination)
-            # TODO: flatten tree.
+            tree = self._build_tree(combination).push_down_1dim_root()
             snapped_intervals[i] = tree.snapped_intervals[0]
             self.tree_cache[combination] = tree  # Cache the flattened version of the tree.
         self.snapped_intervals = tuple(snapped_intervals)
