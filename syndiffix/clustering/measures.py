@@ -34,12 +34,12 @@ class DependenceMeasures:
 
 
 def measure_entropy(root: Node) -> float:
-    num_rows = root.noisy_count
+    num_rows = root.noisy_count()
     entropy = 0.0
 
     def entropy_walk(node: Node) -> None:
         nonlocal entropy
-        count = node.noisy_count
+        count = node.noisy_count()
         if isinstance(node, Leaf):
             entropy = entropy - (count / num_rows * math.log2(count / num_rows))
         elif isinstance(node, Branch):
@@ -88,13 +88,13 @@ def measure_dependence(forest: Forest, col_x: ColumnId, col_y: ColumnId) -> Depe
     scores: list[Score] = []
 
     def walk(node_xy: Optional[Node], node_x: Node, node_y: Node) -> None:
-        count_x = node_x.noisy_count
-        count_y = node_y.noisy_count
+        count_x = node_x.noisy_count()
+        count_y = node_y.noisy_count()
 
         if count_x < range_thresh or count_y < range_thresh:
             return
 
-        actual_2dim_count = node_xy.noisy_count if node_xy else 0.0
+        actual_2dim_count = node_xy.noisy_count() if node_xy else 0.0
         expected_2dim_count = count_x * count_y / num_rows
 
         score = abs(expected_2dim_count - actual_2dim_count) / max(expected_2dim_count, actual_2dim_count)

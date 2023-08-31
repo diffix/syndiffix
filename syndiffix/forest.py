@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import random
+
 import numpy as np
 import numpy.typing as npt
 from pandas import DataFrame
@@ -24,6 +26,9 @@ class Forest:
         self.anonymization_context = anonymization_context
         self.bucketization_params = bucketization_params
         self.counters_factory = counters_factory
+        self.orig_aids = aids
+        self.orig_data = data
+        self.unsafe_random = random.Random(0)
 
         assert len(aids) == len(data)
         assert len(data) > 0
@@ -99,3 +104,6 @@ class Forest:
             tree = self._build_tree(combination)
             self._tree_cache[combination] = tree
         return tree
+
+    def derive_unsafe_random(self) -> random.Random:
+        return random.Random(self.unsafe_random.random())
