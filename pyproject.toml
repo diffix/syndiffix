@@ -1,6 +1,6 @@
 [tool.flake8]
 max-line-length = 120
-ignore = ["F403", "F405", "W503"] # allow star imports and break before binary operator
+ignore = ["E203", "F403", "F405", "W503"] # black compatibility, allow star imports and break before binary operator
 
 [tool.black]
 line-length = 120
@@ -30,6 +30,7 @@ python = "^3.10.0"
 pandas = "^2.0.3"
 fire = "^0.5.0"
 flake8-pyproject = "^1.2.3"
+pybloom-live = "^4.0.0"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.4.1"
