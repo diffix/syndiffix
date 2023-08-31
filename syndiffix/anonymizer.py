@@ -83,42 +83,42 @@ def _compact_flattening_intervals(
 ) -> tuple[FlatteningInterval, FlatteningInterval] | None:
     if total_count < outlier_count.lower + top_count.lower:
         return None
-    else:
-        total_adjustment = outlier_count.upper + top_count.upper - total_count
-        compactIntervals = outlier_count, top_count
 
-        if total_adjustment > 0:
-            # NOTE: At this point we know `0 < total_adjustment <= outlier_range + top_range` (*):
-            #       `total_adjustment = outlier_count.upper + top_count.upper - total_count
-            #                        <= outlier_count.upper + top_count.upper - outlier_count.lower - top_count.lower`.
-            outlier_range = outlier_count.upper - outlier_count.lower
-            top_range = top_count.upper - top_count.lower
-            # `top_adjustment` will be half of `total_adjustment` rounded up, so it takes priority as it should.
-            outlier_adjustment = total_adjustment // 2
-            top_adjustment = total_adjustment - outlier_adjustment
+    total_adjustment = outlier_count.upper + top_count.upper - total_count
+    compactIntervals = outlier_count, top_count
 
-            # Adjust, depending on how the adjustments "fit" in the ranges.
-            match (outlier_range >= outlier_adjustment, top_range >= top_adjustment):
-                case (True, True):
-                    # Both ranges are compacted at same rate.
-                    outlier_count.upper -= outlier_adjustment
-                    top_count.upper -= top_adjustment
-                case (False, True):
-                    # `outlier_count` is compacted as much as possible by `outlier_range`,
-                    # `top_count` takes the surplus adjustment.
-                    outlier_count.upper = outlier_count.lower
-                    top_count.upper -= total_adjustment - outlier_range
-                case (True, False):
-                    # Vice versa.
-                    outlier_count.upper -= total_adjustment - top_range
-                    top_count.upper = top_count.lower
-                case (False, False):
-                    # Not possible. Otherwise:
-                    # `outlier_range + top_range < outlier_adjustment + top_adjustment = total_adjustment`,
-                    # but we knew the opposite was true in (*) above.
-                    raise RuntimeError("Impossible interval compacting.")
+    if total_adjustment > 0:
+        # NOTE: At this point we know `0 < total_adjustment <= outlier_range + top_range` (*):
+        #       `total_adjustment = outlier_count.upper + top_count.upper - total_count
+        #                        <= outlier_count.upper + top_count.upper - outlier_count.lower - top_count.lower`.
+        outlier_range = outlier_count.upper - outlier_count.lower
+        top_range = top_count.upper - top_count.lower
+        # `top_adjustment` will be half of `total_adjustment` rounded up, so it takes priority as it should.
+        outlier_adjustment = total_adjustment // 2
+        top_adjustment = total_adjustment - outlier_adjustment
 
-        return compactIntervals
+        # Adjust, depending on how the adjustments "fit" in the ranges.
+        match (outlier_range >= outlier_adjustment, top_range >= top_adjustment):
+            case (True, True):
+                # Both ranges are compacted at same rate.
+                outlier_count.upper -= outlier_adjustment
+                top_count.upper -= top_adjustment
+            case (False, True):
+                # `outlier_count` is compacted as much as possible by `outlier_range`,
+                # `top_count` takes the surplus adjustment.
+                outlier_count.upper = outlier_count.lower
+                top_count.upper -= total_adjustment - outlier_range
+            case (True, False):
+                # Vice versa.
+                outlier_count.upper -= total_adjustment - top_range
+                top_count.upper = top_count.lower
+            case (False, False):
+                # Not possible. Otherwise:
+                # `outlier_range + top_range < outlier_adjustment + top_adjustment = total_adjustment`,
+                # but we knew the opposite was true in (*) above.
+                raise RuntimeError("Impossible interval compacting.")
+
+    return compactIntervals
 
 
 @dataclass
@@ -140,42 +140,42 @@ def _aid_flattening(contribution: Contributions, context: AnonymizationContext) 
 
     if flattening_intervals is None:
         return None
-    else:
-        outlier_interval, top_interval = flattening_intervals
-        sorted_aid_contributions = sorted(
-            aid_contributions,
-            reverse=True,
-            key=lambda aid_and_contribution: (aid_and_contribution[1], aid_and_contribution[0]),
-        )
 
-        flat_seed = _seed_from_aid_set(
-            aid for aid, _ in sorted_aid_contributions[: outlier_interval.upper + top_interval.upper]
-        )
-        flat_seed = _crypto_hash_salted_seed(anon_params.salt, flat_seed)
-        outlier_count = _random_uniform(outlier_interval, _mix_seed("outlier", flat_seed))
-        top_count = _random_uniform(top_interval, _mix_seed("top", flat_seed))
+    outlier_interval, top_interval = flattening_intervals
+    sorted_aid_contributions = sorted(
+        aid_contributions,
+        reverse=True,
+        key=lambda aid_and_contribution: (aid_and_contribution[1], aid_and_contribution[0]),
+    )
 
-        top_group_sum = sum(
-            contribution for _, contribution in sorted_aid_contributions[outlier_count : (outlier_count + top_count)]
-        )
-        top_group_average = top_group_sum / top_count
+    flat_seed = _seed_from_aid_set(
+        aid for aid, _ in sorted_aid_contributions[: outlier_interval.upper + top_interval.upper]
+    )
+    flat_seed = _crypto_hash_salted_seed(anon_params.salt, flat_seed)
+    outlier_count = _random_uniform(outlier_interval, _mix_seed("outlier", flat_seed))
+    top_count = _random_uniform(top_interval, _mix_seed("top", flat_seed))
 
-        flattening = sum(
-            max(contribution - top_group_average, 0) for _, contribution in sorted_aid_contributions[:outlier_count]
-        )
+    top_group_sum = sum(
+        contribution for _, contribution in sorted_aid_contributions[outlier_count : (outlier_count + top_count)]
+    )
+    top_group_average = top_group_sum / top_count
 
-        real_sum = sum(contribution for _, contribution in aid_contributions)
-        flattened_unaccounted_for = max(unaccounted_for - flattening, 0)
-        flattened_sum = real_sum - flattening
-        flattened_avg = flattened_sum / total_count
+    flattening = sum(
+        max(contribution - top_group_average, 0) for _, contribution in sorted_aid_contributions[:outlier_count]
+    )
 
-        noise_scale = max(flattened_avg, 0.5 * top_group_average)
-        noise_sd = anon_params.layer_noise_sd * noise_scale
+    real_sum = sum(contribution for _, contribution in aid_contributions)
+    flattened_unaccounted_for = max(unaccounted_for - flattening, 0)
+    flattened_sum = real_sum - flattening
+    flattened_avg = flattened_sum / total_count
 
-        seeds = (context.bucket_seed, _seed_from_aid_set(aid for aid, _ in aid_contributions))
-        noise = _generate_noise(anon_params.salt, "noise", noise_sd, seeds)
+    noise_scale = max(flattened_avg, 0.5 * top_group_average)
+    noise_sd = anon_params.layer_noise_sd * noise_scale
 
-        return _AidCount(flattened_sum + flattened_unaccounted_for, flattening, noise_sd, noise)
+    seeds = (context.bucket_seed, _seed_from_aid_set(aid for aid, _ in aid_contributions))
+    noise = _generate_noise(anon_params.salt, "noise", noise_sd, seeds)
+
+    return _AidCount(flattened_sum + flattened_unaccounted_for, flattening, noise_sd, noise)
 
 
 def _anonymized_sum(by_aid_sum: Iterable[_AidCount]) -> tuple[float, float]:
@@ -210,17 +210,17 @@ def _money_round_internal(value: float) -> float:
 def _money_round(value: float) -> float:
     if 0.0 <= value < MONEY_ROUND_MIN:
         return 0.0
-    else:
-        tens = 10.0 ** math.floor(math.log10(value))
-        return tens * _money_round_internal(value / tens)
+
+    tens = 10.0 ** math.floor(math.log10(value))
+    return tens * _money_round_internal(value / tens)
 
 
 def _money_round_noise(noise_sd: float) -> float:
     if noise_sd == 0.0:
         return 0.0
-    else:
-        rounding_resolution = _money_round(0.05 * noise_sd)
-        return math.ceil(noise_sd / rounding_resolution) * rounding_resolution
+
+    rounding_resolution = _money_round(0.05 * noise_sd)
+    return math.ceil(noise_sd / rounding_resolution) * rounding_resolution
 
 
 # ----------------------------------------------------------------
@@ -246,14 +246,14 @@ def is_low_count(salt: bytes, params: SuppressionParams, aid_trackers: list[tupl
     for count, seed in aid_trackers:
         if count < params.low_threshold:
             return True
-        else:
-            noise = _generate_noise(salt, "suppress", params.layer_sd, (seed,))
 
-            # `low_mean_gap` is the number of standard deviations between `low_threshold` and desired mean.
-            mean = params.low_mean_gap * params.layer_sd + params.low_threshold
+        noise = _generate_noise(salt, "suppress", params.layer_sd, (seed,))
 
-            if count < noise + mean:
-                return True
+        # `low_mean_gap` is the number of standard deviations between `low_threshold` and desired mean.
+        mean = params.low_mean_gap * params.layer_sd + params.low_threshold
+
+        if count < noise + mean:
+            return True
 
     return False
 
@@ -265,10 +265,10 @@ def count_multiple_contributions(
 
     if any((flattened is None for flattened in by_aid)):
         return None
-    else:
-        value, noise_sd = _anonymized_sum(list(filter(None, by_aid)))
 
-        return CountResult(int(value), _money_round_noise(noise_sd))
+    value, noise_sd = _anonymized_sum(list(filter(None, by_aid)))
+
+    return CountResult(int(value), _money_round_noise(noise_sd))
 
 
 def count_single_contributions(context: AnonymizationContext, count: int, seed: Hash) -> int:
