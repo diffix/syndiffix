@@ -103,10 +103,8 @@ class Node(ABC):
         pass
 
     def bucket_intervals(self) -> Iterator[Interval]:
-        yield from (
-            actual if actual.is_singularity() else snapped
-            for (snapped, actual) in zip(self.snapped_intervals, self.actual_intervals)
-        )
+        for snapped, actual in zip(self.snapped_intervals, self.actual_intervals):
+            yield actual if actual.is_singularity() else snapped
 
     # Returns the noisy count of rows matching the current node.
     def noisy_count(self) -> int:
