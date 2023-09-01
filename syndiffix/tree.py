@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import NewType, Union, cast
+from typing import Iterator, NewType, Union, cast
 
 import numpy as np
 import numpy.typing as npt
 
+from .anonymizer import hash_strings
 from .common import *
 from .counters import CountersFactory
 from .interval import Interval, Intervals
@@ -44,16 +45,16 @@ class Node(ABC):
         self.actual_intervals = actual_intervals
         # 0-dim subnodes of 1-dim nodes are not considered stubs.
         self.is_stub = len(subnodes) > 0 and all(subnode is None or subnode.is_stub_subnode() for subnode in subnodes)
-        self.stub_subnode_cache: bool | None = None
-        self.noisy_count = 0
+        self._stub_subnode_cache: bool | None = None
+        self._noisy_count_cache = 0
         self.entity_counter = context.counters_factory.create_entity_counter()
 
     def update_aids(self, row: RowId) -> None:
         self.entity_counter.add(self.context.get_aids(row))
 
         # We need to recompute cached values each time new contributions arrive.
-        self.stub_subnode_cache = None
-        self.noisy_count = 0
+        self._stub_subnode_cache = None
+        self._noisy_count_cache = 0
 
     def update_actual_intervals(self, row: RowId) -> None:
         for interval, value in zip(self.actual_intervals, self.context.get_values(row)):
@@ -72,8 +73,8 @@ class Node(ABC):
     def is_stub_subnode(self) -> bool:
         if self.is_stub:
             return True
-        elif self.stub_subnode_cache is not None:
-            return self.stub_subnode_cache  # Return previously cached result.
+        elif self._stub_subnode_cache is not None:
+            return self._stub_subnode_cache  # Return previously cached result.
         else:
             stub_low_threshold = (
                 self.context.bucketization_params.singularity_low_threshold
@@ -81,7 +82,7 @@ class Node(ABC):
                 else self.context.bucketization_params.range_low_threshold
             )
             is_stub_subnode = not self.is_over_threshold(stub_low_threshold)
-            self.stub_subnode_cache = is_stub_subnode  # Cache result for future tests.
+            self._stub_subnode_cache = is_stub_subnode  # Cache result for future tests.
             return is_stub_subnode
 
     # Helper method for `push_down_1dim_root`.
@@ -99,6 +100,34 @@ class Node(ABC):
 
     @abstractmethod
     def add_row(self, depth: int, row: RowId) -> Node:
+        pass
+
+    def bucket_intervals(self) -> Iterator[Interval]:
+        for snapped, actual in zip(self.snapped_intervals, self.actual_intervals):
+            yield actual if actual.is_singularity() else snapped
+
+    # Returns the noisy count of rows matching the current node.
+    def noisy_count(self) -> int:
+        if self._noisy_count_cache == 0:
+            # Use range midpoints as the "bucket labels" for seeding.
+            labels_seed = hash_strings(str(interval.middle()) for interval in self.bucket_intervals())
+            anon_context = AnonymizationContext(
+                self.context.anonymization_context.bucket_seed ^ labels_seed,
+                self.context.anonymization_context.anonymization_params,
+            )
+
+            row_counter = self.context.counters_factory.create_row_counter()
+            for row in self._matching_rows():
+                row_counter.add(self.context.get_aids(row))
+
+            min_count = anon_context.anonymization_params.low_count_params.low_threshold
+            self._noisy_count_cache = max(row_counter.noisy_count(anon_context), min_count)
+
+        return self._noisy_count_cache
+
+    # Helper method for `noisy_count`. Iterates over all of the rows matching the current node.
+    @abstractmethod
+    def _matching_rows(self) -> Iterator[RowId]:
         pass
 
 
@@ -143,6 +172,9 @@ class Leaf(Node):
 
     def push_down_1dim_root(self) -> Node:
         return self
+
+    def _matching_rows(self) -> Iterator[RowId]:
+        yield from self.rows
 
 
 class Branch(Node):
@@ -229,3 +261,7 @@ class Branch(Node):
             return new_root
         else:
             return self
+
+    def _matching_rows(self) -> Iterator[RowId]:
+        for child in self.children.values():
+            yield from child._matching_rows()

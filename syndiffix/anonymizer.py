@@ -4,7 +4,7 @@ import operator
 from collections import Counter
 from dataclasses import dataclass, field
 from functools import reduce
-from typing import cast
+from typing import Iterator, cast
 
 from .common import *
 
@@ -226,6 +226,10 @@ def _money_round_noise(noise_sd: float) -> float:
 # ----------------------------------------------------------------
 # Public API
 # ----------------------------------------------------------------
+
+
+def hash_strings(strings: Iterator[str]) -> Hash:
+    return _seed_from_aid_set(_hash_string(string) for string in set(strings))
 
 
 def hash_aid(aid: object) -> Hash:
