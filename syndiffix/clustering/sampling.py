@@ -11,14 +11,14 @@ def should_sample(forest: Forest) -> bool:
 
     if num_samples >= num_rows:
         return False
-    else:
-        sampled_2dim_work = dimensions * dimensions * num_samples
-        full_2dim_work = (num_rows * dimensions * 3) // 2
 
-        total_work_with_sample = sampled_2dim_work + full_2dim_work
-        total_work_without_sample = dimensions * dimensions * num_rows
+    sampled_2dim_work = dimensions * dimensions * num_samples
+    full_2dim_work = (num_rows * dimensions * 3) // 2
 
-        return total_work_without_sample > total_work_with_sample * 2
+    total_work_with_sample = sampled_2dim_work + full_2dim_work
+    total_work_without_sample = dimensions * dimensions * num_rows
+
+    return total_work_without_sample > total_work_with_sample * 2
 
 
 def sample_forest(forest: Forest) -> Forest:
