@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import NewType, Union, cast
+from typing import Iterator, NewType, Union, cast
 
 import numpy as np
 import numpy.typing as npt
 
+from .anonymizer import hash_strings
 from .common import *
 from .counters import CountersFactory
 from .interval import Interval, Intervals
@@ -45,7 +46,7 @@ class Node(ABC):
         # 0-dim subnodes of 1-dim nodes are not considered stubs.
         self.is_stub = len(subnodes) > 0 and all(subnode is None or subnode.is_stub_subnode() for subnode in subnodes)
         self.stub_subnode_cache: bool | None = None
-        self.noisy_count = 0
+        self.noisy_count_cache = 0
         self.entity_counter = context.counters_factory.create_entity_counter()
 
     def update_aids(self, row: RowId) -> None:
@@ -53,7 +54,7 @@ class Node(ABC):
 
         # We need to recompute cached values each time new contributions arrive.
         self.stub_subnode_cache = None
-        self.noisy_count = 0
+        self.noisy_count_cache = 0
 
     def update_actual_intervals(self, row: RowId) -> None:
         for interval, value in zip(self.actual_intervals, self.context.get_values(row)):
@@ -101,6 +102,36 @@ class Node(ABC):
     def add_row(self, depth: int, row: RowId) -> Node:
         pass
 
+    def bucket_intervals(self) -> Iterator[Interval]:
+        yield from (
+            actual if actual.is_singularity() else snapped
+            for (snapped, actual) in zip(self.snapped_intervals, self.actual_intervals)
+        )
+
+    # Returns the noisy count of rows matching the current node.
+    def noisy_count(self) -> int:
+        if self.noisy_count_cache == 0:
+            # Use range midpoints as the "bucket labels" for seeding.
+            labels_seed = hash_strings(str(interval.middle()) for interval in self.bucket_intervals())
+            anon_context = AnonymizationContext(
+                self.context.anonymization_context.bucket_seed ^ labels_seed,
+                self.context.anonymization_context.anonymization_params,
+            )
+
+            row_counter = self.context.counters_factory.create_row_counter()
+            for row in self._matching_rows():
+                row_counter.add(self.context.get_aids(row))
+
+            min_count = anon_context.anonymization_params.low_count_params.low_threshold
+            self.noisy_count_cache = max(row_counter.noisy_count(anon_context), min_count)
+
+        return self.noisy_count_cache
+
+    # Helper method for `noisy_count`. Iterates over all of the rows matching the current node.
+    @abstractmethod
+    def _matching_rows(self) -> Iterator[RowId]:
+        pass
+
 
 class Leaf(Node):
     def __init__(self, context: Context, subnodes: Subnodes, snapped_intervals: Intervals, initial_row: RowId):
@@ -143,6 +174,9 @@ class Leaf(Node):
 
     def push_down_1dim_root(self) -> Node:
         return self
+
+    def _matching_rows(self) -> Iterator[RowId]:
+        yield from self.rows
 
 
 class Branch(Node):
@@ -229,3 +263,7 @@ class Branch(Node):
             return new_root
         else:
             return self
+
+    def _matching_rows(self) -> Iterator[RowId]:
+        for child in self.children.values():
+            yield from child._matching_rows()
