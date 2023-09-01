@@ -50,7 +50,7 @@ class Forest:
         data.fillna(null_mapping_dict, axis=0, inplace=True)
         self.data: npt.NDArray[np.float_] = data.to_numpy(np.float_)
 
-        self.tree_cache: dict[Combination, Node] = {}
+        self._tree_cache: dict[Combination, Node] = {}
 
         # We need to flatten uni-dimensional trees, by pushing the root down as long as one of its halves
         # fails LCF, and update the corresponding dimension's interval, in order to anonymize its boundaries.
@@ -59,7 +59,7 @@ class Forest:
             combination = (ColumnId(i),)
             tree = self._build_tree(combination).push_down_1dim_root()
             snapped_intervals[i] = tree.snapped_intervals[0]
-            self.tree_cache[combination] = tree  # Cache the flattened version of the tree.
+            self._tree_cache[combination] = tree  # Cache the flattened version of the tree.
         self.snapped_intervals = tuple(snapped_intervals)
 
     def _get_subnodes(self, upper_combination: Combination) -> Subnodes:
@@ -94,8 +94,8 @@ class Forest:
         return tree
 
     def get_tree(self, combination: Combination) -> Node:
-        tree = self.tree_cache.get(combination)
+        tree = self._tree_cache.get(combination)
         if tree is None:
             tree = self._build_tree(combination)
-            self.tree_cache[combination] = tree
+            self._tree_cache[combination] = tree
         return tree
