@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Iterator, NewType, Union, cast
 
 import numpy as np
@@ -109,12 +109,10 @@ class Node(ABC):
     # Returns the noisy count of rows matching the current node.
     def noisy_count(self) -> int:
         if self._noisy_count_cache == 0:
-            # Use range midpoints as the "bucket labels" for seeding.
-            labels_seed = hash_strings(str(interval.middle()) for interval in self.bucket_intervals())
-            anon_context = AnonymizationContext(
-                self.context.anonymization_context.bucket_seed ^ labels_seed,
-                self.context.anonymization_context.anonymization_params,
-            )
+            # Use range midpoints as the labels for seeding the per-bucket noise.
+            labels_hash = hash_strings(str(interval.middle()) for interval in self.bucket_intervals())
+            bucket_seed = self.context.anonymization_context.bucket_seed ^ labels_hash
+            anon_context = replace(self.context.anonymization_context, bucket_seed=bucket_seed)
 
             row_counter = self.context.counters_factory.create_row_counter()
             for row in self._matching_rows():
