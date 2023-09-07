@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Iterator, NewType, Union, cast
 
 import numpy as np
@@ -48,6 +48,9 @@ class Node(ABC):
         self._stub_subnode_cache: bool | None = None
         self._noisy_count_cache = 0
         self.entity_counter = context.counters_factory.create_entity_counter()
+
+    def dimensions(self) -> int:
+        return len(self.context.combination)
 
     def update_aids(self, row: RowId) -> None:
         self.entity_counter.add(self.context.get_aids(row))
@@ -109,12 +112,10 @@ class Node(ABC):
     # Returns the noisy count of rows matching the current node.
     def noisy_count(self) -> int:
         if self._noisy_count_cache == 0:
-            # Use range midpoints as the "bucket labels" for seeding.
-            labels_seed = hash_strings(str(interval.middle()) for interval in self.bucket_intervals())
-            anon_context = AnonymizationContext(
-                self.context.anonymization_context.bucket_seed ^ labels_seed,
-                self.context.anonymization_context.anonymization_params,
-            )
+            # Use range midpoints as the labels for seeding the per-bucket noise.
+            labels_hash = hash_strings(str(interval.middle()) for interval in self.bucket_intervals())
+            bucket_seed = self.context.anonymization_context.bucket_seed ^ labels_hash
+            anon_context = replace(self.context.anonymization_context, bucket_seed=bucket_seed)
 
             row_counter = self.context.counters_factory.create_row_counter()
             for row in self._matching_rows():
@@ -200,7 +201,7 @@ class Branch(Node):
     def _create_child_leaf(self, child_index: int, initial_row: RowId) -> Leaf:
         # Create child's intervals by halfing parent's intervals, using the corresponding bit
         # in the index to select the correct half.
-        dimensions = len(self.snapped_intervals)
+        dimensions = self.dimensions()
         snapped_intervals = tuple(
             interval.half((child_index >> (dimensions - dim_index)) & 1)
             for dim_index, interval in enumerate(self.snapped_intervals, 1)

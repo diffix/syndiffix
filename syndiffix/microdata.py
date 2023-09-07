@@ -14,9 +14,9 @@ from pandas.api.types import (
     is_string_dtype,
 )
 
-from .bucket import Bucket
+from .bucket import Buckets
 from .common import ColumnType, Value
-from .interval import Interval
+from .interval import Interval, Intervals
 
 MICRODATA_SYN_VALUE: Literal[0] = 0
 MICRODATA_FLOAT_VALUE: Literal[1] = 1
@@ -63,7 +63,7 @@ class RealConvertor(DataConvertor):
 
     def to_float(self, value: Value) -> float:
         assert isinstance(value, float) or isinstance(value, np.floating)
-        return value
+        return float(value)
 
     def from_interval(self, interval: Interval) -> MicrodataValue:
         value = _generate_float(interval)
@@ -138,7 +138,7 @@ def _generate(interval: Interval, convertor: DataConvertor, null_mapping: float)
 
 
 def _microdata_row_generator(
-    intervals: list[Interval], convertors: list[DataConvertor], null_mappings: list[float]
+    intervals: Intervals, convertors: list[DataConvertor], null_mappings: list[float]
 ) -> Generator[MicrodataRow, None, None]:
     assert len(intervals) == len(convertors)
     assert len(intervals) == len(null_mappings)
@@ -191,7 +191,7 @@ def apply_convertors(convertors: list[DataConvertor], df: pd.DataFrame) -> pd.Da
 
 
 def generate_microdata(
-    buckets: list[Bucket], convertors: list[DataConvertor], null_mappings: list[float]
+    buckets: Buckets, convertors: list[DataConvertor], null_mappings: list[float]
 ) -> list[MicrodataRow]:
     microdata_rows: list[MicrodataRow] = []
     for bucket in buckets:
