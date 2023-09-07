@@ -49,6 +49,9 @@ class Node(ABC):
         self._noisy_count_cache = 0
         self.entity_counter = context.counters_factory.create_entity_counter()
 
+    def dimensions(self) -> int:
+        return len(self.context.combination)
+
     def update_aids(self, row: RowId) -> None:
         self.entity_counter.add(self.context.get_aids(row))
 
@@ -198,7 +201,7 @@ class Branch(Node):
     def _create_child_leaf(self, child_index: int, initial_row: RowId) -> Leaf:
         # Create child's intervals by halfing parent's intervals, using the corresponding bit
         # in the index to select the correct half.
-        dimensions = len(self.snapped_intervals)
+        dimensions = self.dimensions()
         snapped_intervals = tuple(
             interval.half((child_index >> (dimensions - dim_index)) & 1)
             for dim_index, interval in enumerate(self.snapped_intervals, 1)
