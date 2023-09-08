@@ -24,10 +24,13 @@ jobs:
         uses: abatilo/actions-poetry@v2
         with:
           poetry-version: ${{ matrix.poetry-version }}
+      - name: Fix poetry setuptools
+        run: |
+          # Source: https://github.com/python-poetry/poetry/issues/7611#issuecomment-1711443539
+          poetry self add setuptools
       - name: Install project dependencies
         run: |
-          # repeat to work around https://github.com/python-poetry/poetry/issues/7611
-          poetry install || poetry install || poetry install
+          poetry install
       - name: Run tests
         run: |
           poetry run pytest .
