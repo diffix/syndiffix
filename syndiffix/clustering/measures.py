@@ -29,8 +29,8 @@ class DependenceMeasure:
 
 @dataclass
 class DependenceMeasures:
-    dependency_matrix: npt.NDArray[np.float64]
-    entropy_1dim: npt.NDArray[np.float64]
+    dependency_matrix: npt.NDArray[np.float_]
+    entropy_1dim: npt.NDArray[np.float_]
 
 
 def measure_entropy(root: Node) -> float:
@@ -177,10 +177,8 @@ def measure_dependence(forest: Forest, col_x: ColumnId, col_y: ColumnId) -> Depe
 
 def measure_all(forest: Forest) -> DependenceMeasures:
     num_columns = forest.dimensions
-    dependency_matrix = np.full((num_columns, num_columns), 1.0, dtype=np.float64)
-    entropy_1dim = np.array(
-        [measure_entropy(forest.get_tree((ColumnId(i),))) for i in range(num_columns)], dtype=np.float64
-    )
+    dependency_matrix = np.full((num_columns, num_columns), 1.0, dtype=float)
+    entropy_1dim = np.array([measure_entropy(forest.get_tree((ColumnId(i),))) for i in range(num_columns)], dtype=float)
 
     for comb in generate_combinations(2, num_columns):
         col_x, col_y = comb

@@ -137,7 +137,7 @@ class FeatureSelectionResult:
     encoded_scores: dict
 
 
-def _select_features_ml(df: pd.DataFrame, column: str, one_hot_X: bool = False) -> FeatureSelectionResult:
+def select_features_ml(df: pd.DataFrame, column: str, one_hot_X: bool = False) -> FeatureSelectionResult:
     X, X_inv, y = _split(df, column, one_hot_X)
 
     if y.shape[0] == 0 or y.shape[1] == 0:

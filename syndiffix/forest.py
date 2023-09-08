@@ -28,7 +28,7 @@ class Forest:
         self.counters_factory = counters_factory
         self.orig_aids = aids
         self.orig_data = data
-        self.unsafe_random = random.Random(0)
+        self.unsafe_rng = random.Random(0)
 
         assert len(aids) == len(data)
         assert len(data) > 0
@@ -110,5 +110,5 @@ class Forest:
             self._tree_cache[combination] = tree
         return tree
 
-    def derive_unsafe_random(self) -> random.Random:
-        return random.Random(self.unsafe_random.random())
+    def derive_unsafe_rng(self) -> random.Random:
+        return random.Random(self.unsafe_rng.random())

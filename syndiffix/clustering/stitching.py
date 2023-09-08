@@ -21,7 +21,7 @@ class ColumnLocation:
 
 @dataclass
 class StitchContext:
-    random: Random
+    rng: Random
     stitch_owner: StitchOwner
     all_columns: list[ColumnLocation]
     entropy_1dim: list[float]
@@ -49,7 +49,7 @@ class StitchState:
         return replace(self, **kwargs)
 
 
-def _align_length(random: Random, length: int, microtable: list[MicrodataRow]) -> list[MicrodataRow]:
+def _align_length(rng: Random, length: int, microtable: list[MicrodataRow]) -> list[MicrodataRow]:
     curr_length = len(microtable)
     if length == curr_length:
         return microtable
@@ -57,7 +57,7 @@ def _align_length(random: Random, length: int, microtable: list[MicrodataRow]) -
         return microtable[:length]
     else:
         microtable_copy = microtable.copy()
-        microtable_copy.extend([microtable[random.randint(0, curr_length - 1)] for _ in range(length - curr_length)])
+        microtable_copy.extend([microtable[rng.randint(0, curr_length - 1)] for _ in range(length - curr_length)])
         return microtable_copy
 
 
@@ -143,7 +143,7 @@ def _merge_microdata(state: StitchState, left_rows: list[MicrodataRow], right_ro
 
     context = state.context
     stitch_owner = context.stitch_owner
-    random = context.random
+    rng = context.rng
     all_columns = context.all_columns
 
     if stitch_owner == StitchOwner.LEFT:
@@ -153,12 +153,12 @@ def _merge_microdata(state: StitchState, left_rows: list[MicrodataRow], right_ro
     else:
         num_rows = int(round((len(left_rows) + len(right_rows)) / 2.0))
 
-    random.shuffle(left_rows)
-    left_rows = _align_length(random, num_rows, left_rows)
+    rng.shuffle(left_rows)
+    left_rows = _align_length(rng, num_rows, left_rows)
     left_rows.sort(key=_row_sort_key(context.left_stitch_indexes))
 
-    random.shuffle(right_rows)
-    right_rows = _align_length(random, num_rows, right_rows)
+    rng.shuffle(right_rows)
+    right_rows = _align_length(rng, num_rows, right_rows)
     right_rows.sort(key=_row_sort_key(context.right_stitch_indexes))
 
     for i in range(num_rows):
@@ -318,7 +318,7 @@ def _do_stitch(
         currently_sorted_by=-1,
         remaining_sort_attempts=len(stitch_columns),
         context=StitchContext(
-            random=forest.random,
+            rng=forest.unsafe_rng,
             stitch_owner=stitch_owner,
             all_columns=all_columns,
             entropy_1dim=[forest.entropy_1dim[col] for col in stitch_columns],
@@ -336,7 +336,7 @@ def _do_stitch(
 
 
 def _do_patch(
-    random: Random, left: tuple[list[MicrodataRow], Combination], right: tuple[list[MicrodataRow], Combination]
+    rng: Random, left: tuple[list[MicrodataRow], Combination], right: tuple[list[MicrodataRow], Combination]
 ) -> tuple[list[MicrodataRow], Combination]:
     (left_rows, left_combination) = left
     (right_rows, right_combination) = right
@@ -348,8 +348,8 @@ def _do_patch(
 
     left_rows = left_rows[:]
     right_rows = right_rows[:]
-    random.shuffle(right_rows)
-    right_rows = _align_length(random, num_rows, right_rows)
+    rng.shuffle(right_rows)
+    right_rows = _align_length(rng, num_rows, right_rows)
 
     all_rows = [
         _merge_row(all_columns, DOESNT_MATTER, left_row, right_row)
@@ -371,7 +371,7 @@ def _stitch(
     right = materialize_tree(forest, stitch_columns + derived_columns)
 
     if len(stitch_columns) == 0:
-        return _do_patch(forest.random, left, right)
+        return _do_patch(forest.unsafe_rng, left, right)
     else:
         return _do_stitch(forest, left, right, derived_cluster)
 
