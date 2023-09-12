@@ -34,7 +34,8 @@ class Forest:
         for dtype in data.dtypes:
             assert is_float_dtype(dtype)
 
-        self.dimensions = len(data.columns)
+        self.columns = tuple(data.columns)
+        self.dimensions = len(self.columns)
 
         actual_intervals = tuple(Interval(data.iloc[:, i].min(), data.iloc[:, i].max()) for i in range(self.dimensions))
         self.null_mappings = tuple(get_null_mapping(interval) for interval in actual_intervals)
@@ -73,7 +74,11 @@ class Forest:
     def _build_tree(self, combination: Combination) -> Node:
         subnodes = self._get_subnodes(combination)
 
-        # TODO: hash column names into bucket seed.
+        # Hash column names into the tree's base bucket seed.
+        columns_hash = hash_strings(iter(get_items_combination(combination, self.columns)))
+        base_seed = columns_hash ^ self.anonymization_context.bucket_seed
+        anonymization_context = replace(self.anonymization_context, bucket_seed=base_seed)
+
         # TODO: compute noisy row limit.
         row_limit = 10
 
@@ -81,7 +86,7 @@ class Forest:
             combination,
             self.aid_data,
             self.data,
-            self.anonymization_context,
+            anonymization_context,
             self.bucketization_params,
             row_limit,
             self.counters_factory,

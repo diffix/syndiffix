@@ -117,3 +117,14 @@ def test_outliers_are_not_dropped_2() -> None:
     tree = forest.get_tree((ColumnId(0),))
 
     assert tree.noisy_count() == 9
+
+
+def test_hashing_of_column_names() -> None:
+    data = [
+        [0.0, 0.0],
+    ]
+    forest = create_forest(DataFrame(data, columns=["col1", "col2"]))
+    tree1 = forest.get_tree((ColumnId(0),))
+    tree2 = forest.get_tree((ColumnId(1),))
+
+    assert tree1.context.anonymization_context.bucket_seed != tree2.context.anonymization_context.bucket_seed
