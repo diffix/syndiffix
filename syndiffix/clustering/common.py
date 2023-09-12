@@ -50,3 +50,9 @@ class ClusteringContext:
     @property
     def num_columns(self) -> int:
         return len(self.dependency_matrix)
+
+
+@dataclass
+class StitchingMetadata:
+    dimension_is_integral: list[bool]
+    entropy_1dim: npt.NDArray[np.float_]

@@ -290,6 +290,7 @@ def _stitch_rec(state: StitchState, left_rows: list[MicrodataRow], right_rows: l
 
 def _do_stitch(
     forest: Forest,
+    metadata: StitchingMetadata,
     left: tuple[list[MicrodataRow], Combination],
     right: tuple[list[MicrodataRow], Combination],
     derived_cluster: DerivedCluster,
@@ -305,7 +306,7 @@ def _do_stitch(
         raise ValueError(f"Empty sequence in cluster {right_combination}.")
 
     # Pick lowest entropy column first.
-    stitch_columns = sorted(stitch_columns, key=lambda col: (forest.entropy_1dim[col], col))
+    stitch_columns = sorted(stitch_columns, key=lambda col: (metadata.entropy_1dim[col], col))
     all_columns = _locate_columns(left_combination, right_combination)
     result_rows: list[MicrodataRow] = []
 
@@ -321,9 +322,9 @@ def _do_stitch(
             rng=forest.unsafe_rng,
             stitch_owner=stitch_owner,
             all_columns=all_columns,
-            entropy_1dim=[forest.entropy_1dim[col] for col in stitch_columns],
+            entropy_1dim=[metadata.entropy_1dim[col] for col in stitch_columns],
             stitch_max_values=[r.max for r in root_stitch_intervals],
-            stitch_is_integral=[_is_integral(forest.data_converters[col].column_type) for col in stitch_columns],
+            stitch_is_integral=[metadata.dimension_is_integral[col] for col in stitch_columns],
             left_stitch_indexes=_find_indexes(left_combination, stitch_columns),
             right_stitch_indexes=_find_indexes(right_combination, stitch_columns),
             result_rows=result_rows,
@@ -363,6 +364,7 @@ def _do_patch(
 def _stitch(
     materialize_tree: TreeMaterializer,
     forest: Forest,
+    metadata: StitchingMetadata,
     left: tuple[list[MicrodataRow], Combination],
     derived_cluster: DerivedCluster,
 ) -> tuple[list[MicrodataRow], Combination]:
@@ -373,16 +375,16 @@ def _stitch(
     if len(stitch_columns) == 0:
         return _do_patch(forest.unsafe_rng, left, right)
     else:
-        return _do_stitch(forest, left, right, derived_cluster)
+        return _do_stitch(forest, metadata, left, right, derived_cluster)
 
 
 def build_table(
-    materialize_tree: TreeMaterializer, forest: Forest, clusters: Clusters
+    materialize_tree: TreeMaterializer, forest: Forest, metadata: StitchingMetadata, clusters: Clusters
 ) -> tuple[list[Row], Combination]:
     acc = materialize_tree(forest, clusters.initial_cluster)
 
     for derived_cluster in clusters.derived_clusters:
-        acc = _stitch(materialize_tree, forest, acc, derived_cluster)
+        acc = _stitch(materialize_tree, forest, metadata, acc, derived_cluster)
 
     rows, columns = acc
     return [microdata_row_to_row(row) for row in rows], columns

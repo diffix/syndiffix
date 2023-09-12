@@ -201,9 +201,10 @@ def solve(context: ClusteringContext) -> Clusters:
     return _do_solve(context)
 
 
-def solve_with_features(main_column: ColumnId, main_features: list[ColumnId], forest: Forest) -> Clusters:
+def solve_with_features(
+    main_column: ColumnId, main_features: list[ColumnId], forest: Forest, entropy_1dim: list[float]
+) -> Clusters:
     num_columns = forest.dimensions
-    entropy_1dim = forest.entropy_1dim
     main_column_weight = col_weight(entropy_1dim[main_column])
     max_weight = forest.bucketization_params.clustering_max_cluster_weight
 
