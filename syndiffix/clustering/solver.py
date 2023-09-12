@@ -1,25 +1,8 @@
 import math
 from dataclasses import dataclass
-from random import Random
-from typing import Optional
 
 from ..common import *
 from .common import *
-
-
-@dataclass
-class ClusteringContext:
-    dependency_matrix: list[list[float]]
-    entropy_1_dim: list[float]
-    total_dependence_per_column: list[float]
-    anonymization_params: AnonymizationParams
-    bucketization_params: BucketizationParams
-    random: Random
-    main_column: Optional[ColumnId]
-
-    @property
-    def num_columns(self) -> int:
-        return len(self.dependency_matrix)
 
 
 @dataclass
@@ -46,7 +29,7 @@ def build_clusters(context: ClusteringContext, permutation: list[ColumnId]) -> C
     max_weight = context.bucketization_params.clustering_max_cluster_weight
 
     dependency_matrix = context.dependency_matrix
-    entropy_1_dim = context.entropy_1_dim
+    entropy_1_dim = context.entropy_1dim
 
     def col_weight_by_id(col: ColumnId) -> float:
         return col_weight(entropy_1_dim[col])
@@ -68,7 +51,7 @@ def build_clusters(context: ClusteringContext, permutation: list[ColumnId]) -> C
 
         for i, cluster in enumerate(clusters):
             capacity = max_weight if i == 0 else DERIVED_COLS_RATIO * max_weight
-            average_quality = sum(dependency_matrix[col][c] for c in cluster.columns) / len(cluster.columns)
+            average_quality = sum(dependency_matrix[col, c] for c in cluster.columns) / len(cluster.columns)
 
             # Skip if below threshold or above weight limit.
             if average_quality < merge_thresh or (
@@ -100,8 +83,8 @@ def build_clusters(context: ClusteringContext, permutation: list[ColumnId]) -> C
         best_stitch_columns = [
             (
                 c_left,
-                sum(dependency_matrix[c_left][c_right] for c_right in derived_columns) / len(derived_columns),
-                max(dependency_matrix[c_left][c_right] for c_right in derived_columns),
+                sum(dependency_matrix[c_left, c_right] for c_right in derived_columns) / len(derived_columns),
+                max(dependency_matrix[c_left, c_right] for c_right in derived_columns),
             )
             for c_left in available_columns
         ]
@@ -141,8 +124,8 @@ def clustering_quality(context: ClusteringContext, clusters: Clusters) -> float:
 
             for j in range(i):
                 col_b = columns[j]
-                unsatisfied_dependencies[col_a] -= dependency_matrix[col_a][col_b]
-                unsatisfied_dependencies[col_b] -= dependency_matrix[col_b][col_a]
+                unsatisfied_dependencies[col_a] -= dependency_matrix[col_a, col_b]
+                unsatisfied_dependencies[col_b] -= dependency_matrix[col_b, col_a]
 
     visit_pairs(clusters.initial_cluster)
 
@@ -152,26 +135,9 @@ def clustering_quality(context: ClusteringContext, clusters: Clusters) -> float:
     return sum(unsatisfied_dependencies) / (2.0 * len(unsatisfied_dependencies))
 
 
-def clustering_context(main_column: Optional[ColumnId], forest: Forest) -> ClusteringContext:
-    total_per_column = [
-        sum(forest.dependency_matrix[i][j] for j in range(forest.dimensions) if i != j)
-        for i in range(forest.dimensions)
-    ]
-
-    return ClusteringContext(
-        dependency_matrix=forest.dependency_matrix,
-        entropy_1_dim=forest.entropy_1_dim,
-        total_dependence_per_column=total_per_column,
-        anonymization_params=forest.anonymization_context.anonymization_params,
-        bucketization_params=forest.bucketization_params,
-        random=forest.random,
-        main_column=main_column,
-    )
-
-
-def do_solve(context: ClusteringContext) -> Clusters:
+def _do_solve(context: ClusteringContext) -> Clusters:
     num_cols = context.num_columns
-    random = context.random
+    rng = context.rng
 
     # Constants
     initial_solution = [ColumnId(i) for i in range(num_cols)]
@@ -185,10 +151,10 @@ def do_solve(context: ClusteringContext) -> Clusters:
 
     def mutate(solution: list[ColumnId]) -> list[ColumnId]:
         copy = solution.copy()
-        i = random.randint(0, num_cols - 1)
-        j = random.randint(0, num_cols - 1)
+        i = rng.randint(0, num_cols - 1)
+        j = rng.randint(0, num_cols - 1)
         while i == j:
-            j = random.randint(0, num_cols - 1)
+            j = rng.randint(0, num_cols - 1)
 
         copy[i], copy[j] = solution[j], solution[i]
         return copy
@@ -210,7 +176,7 @@ def do_solve(context: ClusteringContext) -> Clusters:
         new_energy = evaluate(new_solution)
         energy_delta = new_energy - current_energy
 
-        if energy_delta <= 0.0 or math.exp(-energy_delta / temperature) > random.random():
+        if energy_delta <= 0.0 or math.exp(-energy_delta / temperature) > rng.random():
             current_solution = new_solution
             current_energy = new_energy
 
@@ -223,10 +189,23 @@ def do_solve(context: ClusteringContext) -> Clusters:
     return build_clusters(context, best_solution)
 
 
-def solve_with_features(main_column: ColumnId, main_features: list[ColumnId], forest: Forest) -> Clusters:
+def solve(context: ClusteringContext) -> Clusters:
+    assert context.bucketization_params.clustering_max_cluster_weight > 1.0
+    num_cols = context.num_columns
+
+    if num_cols < 3:
+        # Build a cluster that includes everything.
+        return Clusters(initial_cluster=[ColumnId(i) for i in range(num_cols)], derived_clusters=[])
+
+    # TODO: Do an exact search up to a number of columns.
+    return _do_solve(context)
+
+
+def solve_with_features(
+    main_column: ColumnId, main_features: list[ColumnId], forest: Forest, entropy_1dim: list[float]
+) -> Clusters:
     num_columns = forest.dimensions
-    entropy_1_dim = entropy_1_dim = forest.entropy_1_dim
-    main_column_weight = col_weight(entropy_1_dim[main_column])
+    main_column_weight = col_weight(entropy_1dim[main_column])
     max_weight = forest.bucketization_params.clustering_max_cluster_weight
 
     clusters: list[MutableCluster] = []
@@ -240,7 +219,7 @@ def solve_with_features(main_column: ColumnId, main_features: list[ColumnId], fo
     curr.columns.add(main_column)  # Only for the first cluster, in others main is a stitch column.
 
     for feature in main_features:
-        weight = col_weight(entropy_1_dim[feature])
+        weight = col_weight(entropy_1dim[feature])
 
         if len(curr.columns) > 1 and curr.total_entropy + weight > max_weight:
             curr = new_cluster()

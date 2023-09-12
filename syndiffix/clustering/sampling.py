@@ -32,10 +32,10 @@ def sample_forest(forest: Forest) -> Forest:
     )
 
     # New RNG prevents `forest.Random` from being affected by sample size.
-    random = forest.derive_unsafe_random()
+    rng = forest.derive_unsafe_rng()
 
     num_samples = forest.bucketization_params.clustering_table_sample_size
-    random_indices = random.sample(range(len(forest.orig_data)), num_samples)
+    random_indices = rng.sample(range(len(forest.orig_data)), num_samples)
 
     sampled_aids = forest.orig_aids.iloc[random_indices]
     sampled_data = forest.orig_data.iloc[random_indices]
