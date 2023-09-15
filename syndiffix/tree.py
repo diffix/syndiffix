@@ -146,7 +146,7 @@ class Leaf(Node):
         depth_threshold = self.context.bucketization_params.precision_limit_depth_threshold
 
         return (
-            # `RowLimit` is 0 for nodes above 1dim, no need to check dimensions.
+            # `row_limit` is 0 for trees higher-dimensional than 1, no need to check dimensions here.
             (depth <= depth_threshold or len(self.rows) >= self.context.row_limit)
             and not self.is_stub
             and not self.is_singularity()

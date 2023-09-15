@@ -53,8 +53,8 @@ class BucketizationParams:
     clustering_table_sample_size: int = 1000
     clustering_max_cluster_weight: float = 15.0
     clustering_merge_threshold: float = 0.1
-    precision_limit_row_fraction = 10000
-    precision_limit_depth_threshold = 15
+    precision_limit_row_fraction: int = 10000
+    precision_limit_depth_threshold: int = 15
 
 
 @dataclass
