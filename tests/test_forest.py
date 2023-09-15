@@ -128,3 +128,16 @@ def test_hashing_of_column_names() -> None:
     tree2 = forest.get_tree((ColumnId(1),))
 
     assert tree1.context.anonymization_context.bucket_seed != tree2.context.anonymization_context.bucket_seed
+
+
+def test_depth_limiting() -> None:
+    data = [[float(i)] for i in range(10)]
+
+    forest = create_forest(DataFrame(data, columns=["col"]))
+    tree = forest.get_tree((ColumnId(0),))
+    assert isinstance(tree, Branch)
+
+    zero_depth_params = BucketizationParams(precision_limit_depth_threshold=0, precision_limit_row_fraction=1)
+    forest = create_forest(DataFrame(data, columns=["col"]), bucketization_params=zero_depth_params)
+    tree = forest.get_tree((ColumnId(0),))
+    assert isinstance(tree, Leaf)

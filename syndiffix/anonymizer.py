@@ -279,3 +279,14 @@ def count_single_contributions(context: AnonymizationContext, count: int, seed: 
     params = context.anonymization_params
     noise = _generate_noise(params.salt, "noise", params.layer_noise_sd, (context.bucket_seed, seed))
     return round(count + noise)
+
+
+def noisy_row_limit(salt: bytes, seed: Hash, row_count: int, row_fraction: int) -> int:
+    real_row_limit = row_count // row_fraction
+
+    # Select an integer between plus and minus 5% of `real_row_limit`.
+    noise_range = real_row_limit // 20
+    noise_seed = _mix_seed("precision_limit", _crypto_hash_salted_seed(salt, seed))
+    noise = _random_uniform(FlatteningInterval(-noise_range, noise_range), noise_seed)
+
+    return real_row_limit + noise

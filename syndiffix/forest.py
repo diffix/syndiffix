@@ -7,7 +7,7 @@ import numpy.typing as npt
 from pandas import DataFrame
 from pandas.api.types import is_float_dtype, is_integer_dtype, is_string_dtype
 
-from .anonymizer import hash_aid
+from .anonymizer import hash_aid, noisy_row_limit
 from .common import *
 from .interval import Interval, snap_interval
 from .microdata import get_null_mapping
@@ -84,8 +84,16 @@ class Forest:
         base_seed = columns_hash ^ self.anonymization_context.bucket_seed
         anonymization_context = replace(self.anonymization_context, bucket_seed=base_seed)
 
-        # TODO: compute noisy row limit.
-        row_limit = 10
+        row_limit = (
+            noisy_row_limit(
+                anonymization_context.anonymization_params.salt,
+                anonymization_context.bucket_seed,
+                len(self.data),
+                self.bucketization_params.precision_limit_row_fraction,
+            )
+            if len(combination) == 1
+            else 0  # Only 1dim trees are depth limited.
+        )
 
         context = Context(
             combination,
