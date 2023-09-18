@@ -37,10 +37,13 @@ def microdata_row_to_row(microdata_row: MicrodataRow) -> Row:
     return tuple(value[MICRODATA_SYN_VALUE] for value in microdata_row)
 
 
+Entropy1Dim = npt.NDArray[np.float_]
+
+
 @dataclass
 class ClusteringContext:
     dependency_matrix: npt.NDArray[np.float_]
-    entropy_1dim: npt.NDArray[np.float_]
+    entropy_1dim: Entropy1Dim
     total_dependence_per_column: list[float]
     anonymization_params: AnonymizationParams
     bucketization_params: BucketizationParams
@@ -55,4 +58,4 @@ class ClusteringContext:
 @dataclass
 class StitchingMetadata:
     dimension_is_integral: list[bool]
-    entropy_1dim: npt.NDArray[np.float_]
+    entropy_1dim: Entropy1Dim

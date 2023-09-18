@@ -155,7 +155,7 @@ def get_null_mapping(interval: Interval) -> float:
         return 1.0
 
 
-def _get_convertor(df: pd.DataFrame, column: str) -> DataConvertor:
+def get_convertor(df: pd.DataFrame, column: str) -> DataConvertor:
     dtype = df.dtypes[column]
     if is_integer_dtype(dtype):
         return IntegerConvertor()
@@ -170,10 +170,6 @@ def _get_convertor(df: pd.DataFrame, column: str) -> DataConvertor:
         return StringConvertor(df[column])
     else:
         raise TypeError(f"Dtype {dtype} is not supported.")
-
-
-def get_convertors(df: pd.DataFrame) -> list[DataConvertor]:
-    return [_get_convertor(df, column) for column in df.columns]
 
 
 def _apply_convertor(value: Value, convertor: DataConvertor) -> float:
