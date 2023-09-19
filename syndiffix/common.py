@@ -2,7 +2,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from enum import Enum, unique
 from itertools import combinations
-from typing import NewType, TypeVar, cast
+from typing import NewType, Sequence, TypeVar, cast
 
 import numpy as np
 import pandas as pd
@@ -86,5 +86,9 @@ def generate_combinations(k: int, n: int) -> Iterable[Combination]:
 T = TypeVar("T")
 
 
-def get_items_combination(combination: Combination, items: tuple[T, ...]) -> tuple[T, ...]:
+def get_items_combination(combination: Combination, items: Sequence[T]) -> tuple[T, ...]:
     return tuple(items[index] for index in combination)
+
+
+def get_items_combination_list(combination: Combination, items: Sequence[T]) -> list[T]:
+    return [items[index] for index in combination]

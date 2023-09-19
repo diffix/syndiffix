@@ -8,9 +8,13 @@ from syndiffix.interval import Interval
 from syndiffix.microdata import *
 
 
+def _get_convertors(df: pd.DataFrame) -> list[DataConvertor]:
+    return [get_convertor(df, column) for column in df.columns]
+
+
 def test_casts_to_float() -> None:
     data = pd.DataFrame({"r": [5.0], "i": [6], "b": [True], "s": ["text"], "t": [pd.Timestamp("1800-01-02")]})
-    convertors = get_convertors(data)
+    convertors = _get_convertors(data)
 
     results = apply_convertors(convertors, data)
     assert results.shape == data.shape
@@ -19,7 +23,7 @@ def test_casts_to_float() -> None:
 
 def test_recognizes_types() -> None:
     data = pd.DataFrame({"r": [5.0], "i": [6], "b": [True], "s": ["text"], "t": [pd.Timestamp("1800-01-02")]})
-    convertors = get_convertors(data)
+    convertors = _get_convertors(data)
     assert [c.column_type() for c in convertors] == [
         ColumnType.REAL,
         ColumnType.INTEGER,
@@ -32,7 +36,7 @@ def test_recognizes_types() -> None:
 def test_objects_in_dataframe_rejected() -> None:
     data = pd.DataFrame({"o": [object()]})
     with pytest.raises(TypeError):
-        get_convertors(data)
+        _get_convertors(data)
 
 
 def test_casts_data_from_csv() -> None:
@@ -44,7 +48,7 @@ a,b,c,d,e,f,g,h,i
 """
     )
     data = pd.read_csv(csv, index_col=False, parse_dates=["h"])
-    results = apply_convertors(get_convertors(data), data)
+    results = apply_convertors(_get_convertors(data), data)
     expected = pd.DataFrame(
         {
             "a": [1.0, 1.0],

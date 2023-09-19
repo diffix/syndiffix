@@ -202,7 +202,7 @@ def solve(context: ClusteringContext) -> Clusters:
 
 
 def solve_with_features(
-    main_column: ColumnId, main_features: list[ColumnId], forest: Forest, entropy_1dim: list[float]
+    main_column: ColumnId, main_features: list[ColumnId], forest: Forest, entropy_1dim: Entropy1Dim
 ) -> Clusters:
     num_columns = forest.dimensions
     main_column_weight = col_weight(entropy_1dim[main_column])

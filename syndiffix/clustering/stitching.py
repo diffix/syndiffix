@@ -24,7 +24,7 @@ class StitchContext:
     rng: Random
     stitch_owner: StitchOwner
     all_columns: list[ColumnLocation]
-    entropy_1dim: list[float]
+    entropy_1dim: Entropy1Dim
     stitch_max_values: list[float]
     stitch_is_integral: list[bool]
     left_stitch_indexes: list[ColumnIndex]
@@ -63,13 +63,6 @@ def _align_length(rng: Random, length: int, microtable: list[MicrodataRow]) -> l
 
 def _find_indexes(subset: Sequence[ColumnId], superset: Sequence[ColumnId]) -> list[ColumnIndex]:
     return [ColumnIndex(superset.index(c)) if c in superset else ColumnIndex(-1) for c in subset]
-
-
-def _is_integral(col_type: ColumnType) -> bool:
-    if col_type == ColumnType.REAL or col_type == ColumnType.TIMESTAMP:
-        return False
-    else:
-        return True
 
 
 def _locate_columns(left_combination: Combination, right_combination: Combination) -> list[ColumnLocation]:
@@ -322,7 +315,7 @@ def _do_stitch(
             rng=forest.unsafe_rng,
             stitch_owner=stitch_owner,
             all_columns=all_columns,
-            entropy_1dim=[metadata.entropy_1dim[col] for col in stitch_columns],
+            entropy_1dim=metadata.entropy_1dim[stitch_columns],
             stitch_max_values=[r.max for r in root_stitch_intervals],
             stitch_is_integral=[metadata.dimension_is_integral[col] for col in stitch_columns],
             left_stitch_indexes=_find_indexes(left_combination, stitch_columns),
