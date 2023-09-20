@@ -82,7 +82,12 @@ def synthesize(
         clusters,
     )
 
-    raise Exception("TODO: Convert result to dataframe.")
+    df_syn = pd.DataFrame(rows, columns=get_items_combination_list(root_combination, df_raw_data.columns.tolist()))
+
+    for col in df_syn.columns:
+        df_syn[col] = df_syn[col].astype(df_raw_data[col].dtype)
+
+    return df_syn
 
 
 class Synthesizer(object):
