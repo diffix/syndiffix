@@ -1,5 +1,5 @@
 from collections.abc import Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum, unique
 from itertools import combinations
 from typing import NewType, Sequence, TypeVar, cast
@@ -23,7 +23,7 @@ class ColumnType(Enum):
     TIMESTAMP = 5
 
 
-@dataclass
+@dataclass(frozen=True)
 class Column:
     name: str
     type: ColumnType
@@ -38,14 +38,14 @@ class FlatteningInterval:
     upper: int = 5
 
 
-@dataclass
+@dataclass(frozen=True)
 class SuppressionParams:
     low_threshold: int = 3
     layer_sd: float = 1.0
     low_mean_gap: float = 2.0
 
 
-@dataclass
+@dataclass(frozen=True)
 class BucketizationParams:
     singularity_low_threshold: int = 5
     range_low_threshold: int = 15
@@ -57,9 +57,9 @@ class BucketizationParams:
     precision_limit_depth_threshold: int = 15
 
 
-@dataclass
+@dataclass(frozen=True)
 class AnonymizationParams:
-    aid_columns: tuple[str, ...] = field(default_factory=tuple)
+    aid_columns: tuple[str, ...] = tuple()
     salt: bytes = b""
     low_count_params: SuppressionParams = SuppressionParams()
     outlier_count: FlatteningInterval = FlatteningInterval()
@@ -67,7 +67,7 @@ class AnonymizationParams:
     layer_noise_sd: float = 1.0
 
 
-@dataclass
+@dataclass(frozen=True)
 class AnonymizationContext:
     bucket_seed: Hash
     anonymization_params: AnonymizationParams

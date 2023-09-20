@@ -126,7 +126,7 @@ def _split(df: pd.DataFrame, column: str, one_hot_X: bool) -> tuple[pd.DataFrame
     return X, X_inv, y
 
 
-@dataclass
+@dataclass(frozen=True)
 class FeatureSelectionResult:
     valid: bool
     features: list[str]
