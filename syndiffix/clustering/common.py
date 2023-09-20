@@ -24,7 +24,7 @@ class StitchOwner(Enum):
 DerivedCluster = tuple[StitchOwner, list[ColumnId], list[ColumnId]]
 
 
-@dataclass
+@dataclass(frozen=True)
 class Clusters:
     initial_cluster: list[ColumnId]
     derived_clusters: list[DerivedCluster]
@@ -40,7 +40,7 @@ def microdata_row_to_row(microdata_row: MicrodataRow) -> Row:
 Entropy1Dim = npt.NDArray[np.float_]
 
 
-@dataclass
+@dataclass(frozen=True)
 class ClusteringContext:
     dependency_matrix: npt.NDArray[np.float_]
     entropy_1dim: Entropy1Dim
@@ -55,7 +55,7 @@ class ClusteringContext:
         return len(self.dependency_matrix)
 
 
-@dataclass
+@dataclass(frozen=True)
 class StitchingMetadata:
     dimension_is_integral: list[bool]
     entropy_1dim: Entropy1Dim

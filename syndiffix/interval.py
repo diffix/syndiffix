@@ -4,7 +4,7 @@ import math
 from dataclasses import dataclass
 
 
-@dataclass()
+@dataclass
 class Interval:
     # Notice: this won't work for integer values bigger than 2^53 because of floating point limitations.
     min: float

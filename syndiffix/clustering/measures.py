@@ -9,9 +9,10 @@ import numpy.typing as npt
 from ..common import *
 from ..forest import Forest
 from ..tree import Branch, Leaf, Node
+from .common import *
 
 
-@dataclass
+@dataclass(frozen=True)
 class Score:
     score: float
     count: float
@@ -20,17 +21,17 @@ class Score:
     node_y: Node
 
 
-@dataclass
+@dataclass(frozen=True)
 class DependenceMeasure:
     columns: tuple[int, int]
     dependence: float
     measure_time: float
 
 
-@dataclass
+@dataclass(frozen=True)
 class DependenceMeasures:
     dependency_matrix: npt.NDArray[np.float_]
-    entropy_1dim: npt.NDArray[np.float_]
+    entropy_1dim: Entropy1Dim
 
 
 def measure_entropy(root: Node) -> float:

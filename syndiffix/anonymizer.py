@@ -15,7 +15,7 @@ class Contributions:
     unaccounted_for: int = 0
 
 
-@dataclass
+@dataclass(frozen=True)
 class CountResult:
     anonymized_count: int
     noise_sd: float
@@ -121,7 +121,7 @@ def _compact_flattening_intervals(
     return compactIntervals
 
 
-@dataclass
+@dataclass(frozen=True)
 class _AidCount:
     flattened_sum: float
     flattening: float

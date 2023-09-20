@@ -19,7 +19,7 @@ class ColumnLocation:
     right_index: ColumnIndex
 
 
-@dataclass
+@dataclass(frozen=True)
 class StitchContext:
     rng: Random
     stitch_owner: StitchOwner
@@ -36,7 +36,7 @@ class StitchContext:
         return len(self.left_stitch_indexes)
 
 
-@dataclass
+@dataclass(frozen=True)
 class StitchState:
     depth: int
     stitch_intervals: list[Interval]
