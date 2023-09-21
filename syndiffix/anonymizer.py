@@ -267,7 +267,7 @@ def count_multiple_contributions(
 ) -> CountResult | None:
     by_aid = [_aid_flattening(c, context) for c in contributions]
 
-    if any((flattened is None for flattened in by_aid)):
+    if any(flattened is None for flattened in by_aid):
         return None
 
     value, noise_sd = _anonymized_sum(list(filter(None, by_aid)))
