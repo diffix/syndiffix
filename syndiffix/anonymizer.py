@@ -10,8 +10,8 @@ from .common import *
 
 
 @dataclass
-class Contributions:
-    per_aid: Counter[Hash] = field(default_factory=Counter)
+class AidContributions:
+    value_counts: Counter[Hash] = field(default_factory=Counter)
     unaccounted_for: int = 0
 
 
@@ -123,72 +123,68 @@ def _compact_flattening_intervals(
 
 @dataclass(frozen=True)
 class _AidCount:
-    flattened_sum: float
+    flattened_count: float
     flattening: float
     noise_sd: float
     noise: float
 
 
-def _aid_flattening(contribution: Contributions, context: AnonymizationContext) -> _AidCount | None:
-    unaccounted_for = contribution.unaccounted_for
-    aid_contributions = list(dict(contribution.per_aid).items())
-
-    total_count = len(aid_contributions)
+def _flatten_contributions(aid_contributions: AidContributions, context: AnonymizationContext) -> _AidCount | None:
+    total_count = len(aid_contributions.value_counts)
     anon_params = context.anonymization_params
 
     flattening_intervals = _compact_flattening_intervals(anon_params.outlier_count, anon_params.top_count, total_count)
-
     if flattening_intervals is None:
-        return None
+        return None  # Insufficient values for a sensible flattening.
 
     outlier_interval, top_interval = flattening_intervals
-    sorted_aid_contributions = sorted(
-        aid_contributions,
+
+    # Sort contributions by amount and AID value (to ensure consistency in case of equal contributions).
+    sorted_value_counts = sorted(
+        aid_contributions.value_counts.items(),
         reverse=True,
-        key=lambda aid_and_contribution: (aid_and_contribution[1], aid_and_contribution[0]),
+        key=operator.itemgetter(1, 0),
     )
 
-    flat_seed = _seed_from_aid_set(
-        aid for aid, _ in sorted_aid_contributions[: outlier_interval.upper + top_interval.upper]
-    )
+    flat_seed = _seed_from_aid_set(aid for aid, _ in sorted_value_counts[: outlier_interval.upper + top_interval.upper])
     flat_seed = _crypto_hash_salted_seed(anon_params.salt, flat_seed)
     outlier_count = _random_uniform(outlier_interval, _mix_seed("outlier", flat_seed))
     top_count = _random_uniform(top_interval, _mix_seed("top", flat_seed))
 
     top_group_sum = sum(
-        contribution for _, contribution in sorted_aid_contributions[outlier_count : (outlier_count + top_count)]
+        contribution for _, contribution in sorted_value_counts[outlier_count : (outlier_count + top_count)]
     )
     top_group_average = top_group_sum / top_count
 
     flattening = sum(
-        max(contribution - top_group_average, 0) for _, contribution in sorted_aid_contributions[:outlier_count]
+        max(contribution - top_group_average, 0) for _, contribution in sorted_value_counts[:outlier_count]
     )
 
-    real_sum = sum(contribution for _, contribution in aid_contributions)
-    flattened_unaccounted_for = max(unaccounted_for - flattening, 0)
+    real_sum = aid_contributions.value_counts.total()
+    flattened_unaccounted_for = max(aid_contributions.unaccounted_for - flattening, 0)
     flattened_sum = real_sum - flattening
     flattened_avg = flattened_sum / total_count
 
     noise_scale = max(flattened_avg, 0.5 * top_group_average)
     noise_sd = anon_params.layer_noise_sd * noise_scale
 
-    seeds = (context.bucket_seed, _seed_from_aid_set(aid for aid, _ in aid_contributions))
-    noise = _generate_noise(anon_params.salt, "noise", noise_sd, seeds)
+    aid_seed = _seed_from_aid_set(aid_contributions.value_counts)
+    noise = _generate_noise(anon_params.salt, "noise", noise_sd, (context.bucket_seed, aid_seed))
 
     return _AidCount(flattened_sum + flattened_unaccounted_for, flattening, noise_sd, noise)
 
 
-def _anonymized_sum(by_aid_sum: Iterable[_AidCount]) -> tuple[float, float]:
-    # We might end up with multiple different flattened sums that have the same amount of flattening.
+def _anonymized_sum(aid_counts: Iterable[_AidCount]) -> tuple[float, float]:
+    # We might end up with multiple different flattened counts that have the same amount of flattening.
     # This could be the result of some AID values being null for one of the AIDs, while there were still
-    # overall enough AIDs to produce a flattened sum.
-    # In these cases, we want to use the largest flattened sum to minimize unnecessary flattening.
-    flattening = max(by_aid_sum, key=lambda aggregate: (aggregate.flattening, aggregate.flattened_sum))
+    # overall enough AIDs to produce a flattened count.
+    # In these cases, we want to use the largest flattened count to minimize unnecessary flattening.
+    flattening = max(aid_counts, key=lambda count: (count.flattening, count.flattened_count))
 
     # For determinism, resolve draws using the maximum absolute noise value.
-    noise = max(by_aid_sum, key=lambda aggregate: (aggregate.noise_sd, abs(aggregate.noise)))
+    noise = max(aid_counts, key=lambda count: (count.noise_sd, abs(count.noise)))
 
-    return flattening.flattened_sum + noise.noise, noise.noise_sd
+    return flattening.flattened_count + noise.noise, noise.noise_sd
 
 
 MONEY_ROUND_MIN = 1e-10
@@ -263,16 +259,19 @@ def is_low_count(salt: bytes, params: SuppressionParams, aid_trackers: list[tupl
 
 
 def count_multiple_contributions(
-    context: AnonymizationContext, contributions: list[Contributions]
+    context: AnonymizationContext, contributions_list: list[AidContributions]
 ) -> CountResult | None:
-    by_aid = [_aid_flattening(c, context) for c in contributions]
+    assert len(contributions_list) > 0
 
-    if any(flattened is None for flattened in by_aid):
+    flattened_contributions = [_flatten_contributions(contributions, context) for contributions in contributions_list]
+
+    # If any of the AIDs had insufficient data to produce a sensible flattening, we have to abort anonymization.
+    if not all(flattened_contributions):
         return None
 
-    value, noise_sd = _anonymized_sum(list(filter(None, by_aid)))
+    value, noise_sd = _anonymized_sum(cast(list[_AidCount], flattened_contributions))
 
-    return CountResult(int(value), _money_round_noise(noise_sd))
+    return CountResult(round(value), _money_round_noise(noise_sd))
 
 
 def count_single_contributions(context: AnonymizationContext, count: int, seed: Hash) -> int:
