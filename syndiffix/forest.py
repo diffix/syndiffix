@@ -79,7 +79,7 @@ class Forest:
         subnodes = self._get_subnodes(combination)
 
         # Hash column names into the tree's base bucket seed.
-        columns_hash = hash_strings(iter(get_items_combination(combination, self.columns)))
+        columns_hash = hash_strings(map(str, get_items_combination(combination, self.columns)))
         base_seed = columns_hash ^ self.anonymization_context.bucket_seed
         anonymization_context = replace(self.anonymization_context, bucket_seed=base_seed)
 
