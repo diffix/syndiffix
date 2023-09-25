@@ -22,7 +22,7 @@ def _is_integral(col_type: ColumnType) -> bool:
 def synthesize(
     raw_data: pd.DataFrame,
     aids: Optional[pd.DataFrame] = None,
-    anon_params: AnonymizationParams = AnonymizationParams(),
+    anonymization_context: AnonymizationContext = AnonymizationContext(Hash(0), AnonymizationParams()),
     bucketization_params: BucketizationParams = BucketizationParams(),
     clustering: ClusteringStrategy = DefaultClustering(),
 ) -> pd.DataFrame:
@@ -36,7 +36,7 @@ def synthesize(
     column_is_integral = [_is_integral(convertor.column_type()) for convertor in column_convertors]
 
     forest = Forest(
-        AnonymizationContext(Hash(0), anon_params),
+        anonymization_context,
         bucketization_params,
         counters_factory,
         aids,
