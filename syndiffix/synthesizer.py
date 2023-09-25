@@ -42,8 +42,11 @@ def synthesize(
         assert len(data_columns) > 0
         df_raw_data = df_raw_data[data_columns]
 
+    raw_dtypes = df_raw_data.dtypes
+
     column_convertors = [get_convertor(df, column) for column in df.columns]
     column_is_integral = [_is_integral(convertor.column_type()) for convertor in column_convertors]
+    # TODO: this changes the input DataFrame; we need to create a new one.
     df_data = apply_convertors(column_convertors, df_raw_data)
 
     counters_factory = (
@@ -84,8 +87,8 @@ def synthesize(
 
     df_syn = pd.DataFrame(rows, columns=get_items_combination_list(root_combination, df_raw_data.columns.tolist()))
 
-    for col in df_syn.columns:
-        df_syn[col] = df_syn[col].astype(df_raw_data[col].dtype)
+    for col, dtype in zip(df_syn.columns, raw_dtypes):
+        df_syn[col] = df_syn[col].astype(dtype)
 
     return df_syn
 
