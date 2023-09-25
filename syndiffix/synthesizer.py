@@ -20,47 +20,31 @@ def _is_integral(col_type: ColumnType) -> bool:
 
 
 def synthesize(
-    df: pd.DataFrame,
-    aid_columns: Optional[list[str]] = None,
-    data_columns: Optional[list[str]] = None,
+    raw_data: pd.DataFrame,
+    aids: Optional[pd.DataFrame] = None,
     anon_params: AnonymizationParams = AnonymizationParams(),
     bucketization_params: BucketizationParams = BucketizationParams(),
     clustering: ClusteringStrategy = DefaultClustering(),
 ) -> pd.DataFrame:
-    df_raw_data = df
-
-    if aid_columns is None:
-        aid_columns = []
-
-    if len(aid_columns) > 0:
-        df_aids = df[aid_columns]
-        df_raw_data = df.drop(columns=aid_columns)
+    if aids is None:
+        aids = pd.DataFrame({"RowIndex": range(1, len(raw_data) + 1)})
+        counters_factory = UniqueAidCountersFactory()
     else:
-        df_aids = pd.DataFrame({"RowIndex": range(1, len(df) + 1)})
+        counters_factory = GenericAidCountersFactory(len(aids.columns), bucketization_params.range_low_threshold)
 
-    if data_columns is not None:
-        assert len(data_columns) > 0
-        df_raw_data = df_raw_data[data_columns]
+    raw_dtypes = raw_data.dtypes
 
-    raw_dtypes = df_raw_data.dtypes
-
-    column_convertors = [get_convertor(df, column) for column in df.columns]
+    column_convertors = [get_convertor(raw_data, column) for column in raw_data.columns]
     column_is_integral = [_is_integral(convertor.column_type()) for convertor in column_convertors]
     # TODO: this changes the input DataFrame; we need to create a new one.
-    df_data = apply_convertors(column_convertors, df_raw_data)
-
-    counters_factory = (
-        UniqueAidCountersFactory()
-        if len(aid_columns) == 0
-        else GenericAidCountersFactory(len(aid_columns), bucketization_params.range_low_threshold)
-    )
+    converted_data = apply_convertors(column_convertors, raw_data)
 
     forest = Forest(
         AnonymizationContext(Hash(0), anon_params),
         bucketization_params,
         counters_factory,
-        df_aids,
-        df_data,
+        aids,
+        converted_data,
     )
 
     clusters, entropy_1dim = clustering.build_clusters(forest)
@@ -85,12 +69,12 @@ def synthesize(
         clusters,
     )
 
-    df_syn = pd.DataFrame(rows, columns=get_items_combination_list(root_combination, df_raw_data.columns.tolist()))
+    syn_data = pd.DataFrame(rows, columns=get_items_combination_list(root_combination, raw_data.columns.tolist()))
 
-    for col, dtype in zip(df_syn.columns, raw_dtypes):
-        df_syn[col] = df_syn[col].astype(dtype)
+    for col, dtype in zip(syn_data.columns, raw_dtypes):
+        syn_data[col] = syn_data[col].astype(dtype)
 
-    return df_syn
+    return syn_data
 
 
 class Synthesizer(object):
