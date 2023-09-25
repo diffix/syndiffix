@@ -70,9 +70,7 @@ def synthesize(
     )
 
     syn_data = pd.DataFrame(rows, columns=get_items_combination_list(root_combination, raw_data.columns.tolist()))
-
-    for col, dtype in zip(syn_data.columns, raw_dtypes):
-        syn_data[col] = syn_data[col].astype(dtype)
+    syn_data = syn_data.astype(raw_dtypes.to_dict())
 
     return syn_data
 
