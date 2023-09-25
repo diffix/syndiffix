@@ -7,78 +7,74 @@ from .clustering.common import MicrodataRow
 from .clustering.stitching import StitchingMetadata, build_table
 from .clustering.strategy import ClusteringStrategy, DefaultClustering
 from .common import *
-from .counters import CountersFactory, GenericAidCountersFactory, UniqueAidCountersFactory
+from .counters import (
+    CountersFactory,
+    GenericAidCountersFactory,
+    UniqueAidCountersFactory,
+)
 from .forest import Forest
 from .microdata import apply_convertors, generate_microdata, get_convertor
 
 
-def _is_integral(col_type: ColumnType) -> bool:
-    if col_type == ColumnType.REAL or col_type == ColumnType.TIMESTAMP:
-        return False
-    else:
-        return True
+class Synthesizer(object):
+    @staticmethod
+    def _is_integral(col_type: ColumnType) -> bool:
+        if col_type == ColumnType.REAL or col_type == ColumnType.TIMESTAMP:
+            return False
+        else:
+            return True
 
+    def __init__(
+        self,
+        raw_data: pd.DataFrame,
+        aids: Optional[pd.DataFrame] = None,
+        anonymization_context: AnonymizationContext = AnonymizationContext(Hash(0), AnonymizationParams()),
+        bucketization_params: BucketizationParams = BucketizationParams(),
+        clustering: ClusteringStrategy = DefaultClustering(),
+    ) -> None:
+        if aids is None:
+            aids = pd.DataFrame({"RowIndex": range(1, len(raw_data) + 1)})
+            counters_factory: CountersFactory = UniqueAidCountersFactory()
+        else:
+            counters_factory = GenericAidCountersFactory(len(aids.columns), bucketization_params.range_low_threshold)
 
-def synthesize(
-    raw_data: pd.DataFrame,
-    aids: Optional[pd.DataFrame] = None,
-    anonymization_context: AnonymizationContext = AnonymizationContext(Hash(0), AnonymizationParams()),
-    bucketization_params: BucketizationParams = BucketizationParams(),
-    clustering: ClusteringStrategy = DefaultClustering(),
-) -> pd.DataFrame:
-    if aids is None:
-        aids = pd.DataFrame({"RowIndex": range(1, len(raw_data) + 1)})
-        counters_factory: CountersFactory = UniqueAidCountersFactory()
-    else:
-        counters_factory = GenericAidCountersFactory(len(aids.columns), bucketization_params.range_low_threshold)
+        self.raw_dtypes = raw_data.dtypes
 
-    column_convertors = [get_convertor(raw_data, column) for column in raw_data.columns]
-    column_is_integral = [_is_integral(convertor.column_type()) for convertor in column_convertors]
+        self.column_convertors = [get_convertor(raw_data, column) for column in raw_data.columns]
+        self.column_is_integral = [self._is_integral(convertor.column_type()) for convertor in self.column_convertors]
 
-    forest = Forest(
-        anonymization_context,
-        bucketization_params,
-        counters_factory,
-        aids,
-        apply_convertors(column_convertors, raw_data),
-    )
-
-    clusters, entropy_1dim = clustering.build_clusters(forest)
-
-    def materialize_tree(forest: Forest, columns: list[ColumnId]) -> tuple[list[MicrodataRow], Combination]:
-        combination = tuple(sorted(columns))
-        tree = forest.get_tree(combination)
-        buckets = harvest(tree)
-        return (
-            generate_microdata(
-                buckets,
-                get_items_combination_list(combination, column_convertors),
-                get_items_combination_list(combination, forest.null_mappings),
-            ),
-            combination,
+        self.forest = Forest(
+            anonymization_context,
+            bucketization_params,
+            counters_factory,
+            aids,
+            apply_convertors(self.column_convertors, raw_data),
         )
 
-    rows, root_combination = build_table(
-        materialize_tree,
-        forest,
-        StitchingMetadata(column_is_integral, entropy_1dim),
-        clusters,
-    )
+        self.clusters, self.entropy_1dim = clustering.build_clusters(self.forest)
 
-    syn_data = pd.DataFrame(rows, columns=get_items_combination_list(root_combination, raw_data.columns.tolist()))
-    syn_data = syn_data.astype(raw_data.dtypes.to_dict())
+    def sample(self) -> pd.DataFrame:
+        def materialize_tree(forest: Forest, columns: list[ColumnId]) -> tuple[list[MicrodataRow], Combination]:
+            combination = tuple(sorted(columns))
+            tree = forest.get_tree(combination)
+            buckets = harvest(tree)
+            return (
+                generate_microdata(
+                    buckets,
+                    get_items_combination_list(combination, self.column_convertors),
+                    get_items_combination_list(combination, forest.null_mappings),
+                ),
+                combination,
+            )
 
-    return syn_data
+        rows, root_combination = build_table(
+            materialize_tree,
+            self.forest,
+            StitchingMetadata(self.column_is_integral, self.entropy_1dim),
+            self.clusters,
+        )
 
+        syn_data = pd.DataFrame(rows, columns=get_items_combination(root_combination, self.forest.columns))
+        syn_data = syn_data.astype(self.raw_dtypes.to_dict())
 
-class Synthesizer(object):
-    def __init__(self) -> None:
-        pass
-
-    def fit(self, df: pd.DataFrame) -> None:
-        self.df = df
-
-    def sample(self, n_samples: Optional[int] = None) -> pd.DataFrame:
-        if n_samples is not None:
-            raise NotImplementedError("Specifying n_samples not implemented yet")
-        return self.df
+        return syn_data
