@@ -32,19 +32,15 @@ def synthesize(
     else:
         counters_factory = GenericAidCountersFactory(len(aids.columns), bucketization_params.range_low_threshold)
 
-    raw_dtypes = raw_data.dtypes
-
     column_convertors = [get_convertor(raw_data, column) for column in raw_data.columns]
     column_is_integral = [_is_integral(convertor.column_type()) for convertor in column_convertors]
-    # TODO: this changes the input DataFrame; we need to create a new one.
-    converted_data = apply_convertors(column_convertors, raw_data)
 
     forest = Forest(
         AnonymizationContext(Hash(0), anon_params),
         bucketization_params,
         counters_factory,
         aids,
-        converted_data,
+        apply_convertors(column_convertors, raw_data),
     )
 
     clusters, entropy_1dim = clustering.build_clusters(forest)
@@ -70,7 +66,7 @@ def synthesize(
     )
 
     syn_data = pd.DataFrame(rows, columns=get_items_combination_list(root_combination, raw_data.columns.tolist()))
-    syn_data = syn_data.astype(raw_dtypes.to_dict())
+    syn_data = syn_data.astype(raw_data.dtypes.to_dict())
 
     return syn_data
 

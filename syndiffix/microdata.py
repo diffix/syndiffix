@@ -179,11 +179,13 @@ def _apply_convertor(value: Value, convertor: DataConvertor) -> float:
         return convertor.to_float(value)
 
 
-def apply_convertors(convertors: list[DataConvertor], df: pd.DataFrame) -> pd.DataFrame:
-    for i, column in enumerate(df):
-        df[column] = df[column].apply(_apply_convertor, convertor=convertors[i])
+def apply_convertors(convertors: list[DataConvertor], raw_data: pd.DataFrame) -> pd.DataFrame:
+    converted_columns = [
+        raw_data[column].apply(_apply_convertor, convertor=convertor)
+        for column, convertor in zip(raw_data.columns, convertors)
+    ]
 
-    return df
+    return pd.DataFrame(dict(zip(raw_data.columns, converted_columns)), copy=False)
 
 
 def generate_microdata(
