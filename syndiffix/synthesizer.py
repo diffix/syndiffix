@@ -7,7 +7,7 @@ from .clustering.common import MicrodataRow
 from .clustering.stitching import StitchingMetadata, build_table
 from .clustering.strategy import ClusteringStrategy, DefaultClustering
 from .common import *
-from .counters import GenericAidCountersFactory, UniqueAidCountersFactory
+from .counters import CountersFactory, GenericAidCountersFactory, UniqueAidCountersFactory
 from .forest import Forest
 from .microdata import apply_convertors, generate_microdata, get_convertor
 
@@ -28,7 +28,7 @@ def synthesize(
 ) -> pd.DataFrame:
     if aids is None:
         aids = pd.DataFrame({"RowIndex": range(1, len(raw_data) + 1)})
-        counters_factory = UniqueAidCountersFactory()
+        counters_factory: CountersFactory = UniqueAidCountersFactory()
     else:
         counters_factory = GenericAidCountersFactory(len(aids.columns), bucketization_params.range_low_threshold)
 
