@@ -229,7 +229,7 @@ def hash_strings(strings: Iterator[str]) -> Hash:
 
 
 def hash_aid(aid: object) -> Hash:
-    if aid in [None, "", 0]:
+    if not aid:
         return Hash(0)
     elif isinstance(aid, int):
         return _hash_int(cast(int, aid))
