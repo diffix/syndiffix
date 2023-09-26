@@ -75,6 +75,7 @@ class Synthesizer(object):
         )
 
         syn_data = pd.DataFrame(rows, columns=get_items_combination(root_combination, self.forest.columns))
-        syn_data = syn_data.astype(self.raw_dtypes.to_dict(), copy=False)
+        # Convert the new columns to their original type. We need to account that some columns might be missing.
+        syn_data = syn_data.astype({column: self.raw_dtypes[column] for column in syn_data.columns}, copy=False)
 
         return syn_data
