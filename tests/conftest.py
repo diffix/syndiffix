@@ -21,7 +21,7 @@ def create_forest(
     anon_params: AnonymizationParams | None = None,
     bucketization_params: BucketizationParams | None = None,
 ) -> Forest:
-    aid_df = DataFrame(data_df.index) if aid_df is None else aid_df
+    aid_df = DataFrame(range(1, len(data_df) + 1)) if aid_df is None else aid_df
     anon_params = anon_params if anon_params is not None else AnonymizationParams()
     bucketization_params = bucketization_params if bucketization_params else BucketizationParams()
     return Forest(

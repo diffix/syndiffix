@@ -33,7 +33,7 @@ class StitchContext:
 
     @property
     def num_stitch_columns(self) -> int:
-        return len(self.left_stitch_indexes)
+        return len(self.stitch_is_integral)
 
 
 @dataclass(frozen=True)
