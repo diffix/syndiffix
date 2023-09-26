@@ -75,6 +75,6 @@ class Synthesizer(object):
         )
 
         syn_data = pd.DataFrame(rows, columns=get_items_combination(root_combination, self.forest.columns))
-        syn_data = syn_data.astype(self.raw_dtypes.to_dict())
+        syn_data = syn_data.astype(self.raw_dtypes.to_dict(), copy=False)
 
         return syn_data
