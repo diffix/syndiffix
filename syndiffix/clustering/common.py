@@ -19,7 +19,7 @@ class StitchOwner(Enum):
     RIGHT = 1
     SHARED = 2
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.name
 
 
