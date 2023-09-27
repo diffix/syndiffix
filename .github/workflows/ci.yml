@@ -42,7 +42,7 @@ jobs:
           poetry run flake8 .
       - name: Check type hints
         run: |
-          poetry run mypy .
+          poetry run mypy --install-types --non-interactive .
       - name: Check imports being sorted
         run: |
           poetry run isort . --check
