@@ -19,6 +19,9 @@ class StitchOwner(Enum):
     RIGHT = 1
     SHARED = 2
 
+    def __repr__(self) -> str:
+        return self.name
+
 
 # Owner, Stitch columns, Derived columns
 DerivedCluster = tuple[StitchOwner, list[ColumnId], list[ColumnId]]
