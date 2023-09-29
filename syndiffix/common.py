@@ -5,10 +5,11 @@ from itertools import combinations
 from typing import NewType, Sequence, TypeVar, cast
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 
 Hash = np.uint64
-Hashes = tuple[Hash, ...]
+Hashes = npt.NDArray[Hash]
 
 Value = int | float | str | bool | pd.Timestamp | None
 Row = tuple[Value, ...]

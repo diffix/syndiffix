@@ -26,7 +26,7 @@ class Context:
     counters_factory: CountersFactory
 
     def get_aids(self, row: RowId) -> Hashes:
-        return tuple(self.aid_data[row])
+        return self.aid_data[row]
 
     def get_values(self, row: RowId) -> tuple[float, ...]:
         return get_items_combination(self.combination, self.data[row])
