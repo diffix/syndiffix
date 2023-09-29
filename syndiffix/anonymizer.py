@@ -71,7 +71,7 @@ def _mix_seed(step_name: str, seed: Hash) -> Hash:
     return _hash_string(step_name) ^ seed
 
 
-def _generate_noise(salt: bytes, step_name: str, sd: float, noise_layers: Hashes) -> float:
+def _generate_noise(salt: bytes, step_name: str, sd: float, noise_layers: tuple[Hash, ...]) -> float:
     noise = 0.0
     for layer_seed in noise_layers:
         noise += _random_normal(sd, _mix_seed(step_name, _crypto_hash_salted_seed(salt, layer_seed)))
