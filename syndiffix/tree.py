@@ -25,12 +25,6 @@ class Context:
     row_limit: int
     counters_factory: CountersFactory
 
-    def get_aids(self, row: RowId) -> Hashes:
-        return self.aid_data[row]
-
-    def get_values(self, row: RowId) -> tuple[float, ...]:
-        return get_items_combination(self.combination, self.data[row])
-
 
 Subnodes = tuple[Union["Node", None], ...]
 
@@ -53,15 +47,16 @@ class Node(ABC):
         return len(self.context.combination)
 
     def update_aids(self, row: RowId) -> None:
-        self.entity_counter.add(self.context.get_aids(row))
+        self.entity_counter.add(self.context.aid_data[row])
 
         # We need to recompute cached values each time new contributions arrive.
         self._stub_subnode_cache = None
         self._noisy_count_cache = 0
 
     def update_actual_intervals(self, row: RowId) -> None:
-        for interval, value in zip(self.actual_intervals, self.context.get_values(row)):
-            interval.expand(value)
+        values = self.context.data[row]
+        for interval, value_index in zip(self.actual_intervals, self.context.combination):
+            interval.expand(values[value_index])
 
     def is_singularity(self) -> bool:
         return all(interval.is_singularity() for interval in self.actual_intervals)
@@ -119,7 +114,7 @@ class Node(ABC):
 
             row_counter = self.context.counters_factory.create_row_counter()
             for row in self._matching_rows():
-                row_counter.add(self.context.get_aids(row))
+                row_counter.add(self.context.aid_data[row])
 
             min_count = anon_context.anonymization_params.low_count_params.low_threshold
             self._noisy_count_cache = max(row_counter.noisy_count(anon_context), min_count)
@@ -134,7 +129,8 @@ class Node(ABC):
 
 class Leaf(Node):
     def __init__(self, context: Context, subnodes: Subnodes, snapped_intervals: Intervals, initial_row: RowId):
-        actual_intervals = tuple(Interval(value, value) for value in context.get_values(initial_row))
+        initial_values = get_items_combination(context.combination, context.data[initial_row])
+        actual_intervals = tuple(Interval(value, value) for value in initial_values)
         super().__init__(context, subnodes, snapped_intervals, actual_intervals)
         self.rows = [initial_row]
 
@@ -185,10 +181,11 @@ class Branch(Node):
 
     # Each dimension corresponds to a bit in index, with 0 for the lower interval half and
     # 1 for the the upper interval half.
-    def _find_child_index(self, values: tuple[float, ...]) -> int:
+    def _find_child_index(self, row: RowId) -> int:
+        values = self.context.data[row]
         child_index = 0
-        for value, interval in zip(values, self.snapped_intervals):
-            child_index = (child_index << 1) | interval.half_index(value)
+        for value_index, interval in zip(self.context.combination, self.snapped_intervals):
+            child_index = (child_index << 1) | interval.half_index(values[value_index])
         return child_index
 
     @staticmethod
@@ -218,7 +215,7 @@ class Branch(Node):
         return Leaf(self.context, subnodes, snapped_intervals, initial_row)
 
     def add_row(self, depth: int, row: RowId) -> Node:
-        child_index = self._find_child_index(self.context.get_values(row))
+        child_index = self._find_child_index(row)
         child = self.children.get(child_index)
         self.children[child_index] = (
             self._create_child_leaf(child_index, row) if child is None else child.add_row(depth + 1, row)
@@ -229,11 +226,7 @@ class Branch(Node):
 
     def _add_1dim_outlier_row(self, row: RowId) -> None:
         self.update_aids(row)
-        child_index = (
-            next(iter(self.children))
-            if len(self.children) == 1
-            else self._find_child_index(self.context.get_values(row))
-        )
+        child_index = next(iter(self.children)) if len(self.children) == 1 else self._find_child_index(row)
         self.children[child_index]._add_1dim_outlier_row(row)
 
     # Returns the low-count rows, if any, from the specified child leaf of the current 1-dim branch.

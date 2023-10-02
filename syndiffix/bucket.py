@@ -102,7 +102,7 @@ def _compact_node_interval(leaf: Leaf, dimension: int, interval: Interval) -> In
 
     for row in leaf.rows:
         half_index = interval.half_index(leaf.context.data[row][value_index])
-        per_half_entity_counters[half_index].add(leaf.context.get_aids(row))
+        per_half_entity_counters[half_index].add(leaf.context.aid_data[row])
 
     anon_params = leaf.context.anonymization_context.anonymization_params
     per_half_low_count = tuple(
