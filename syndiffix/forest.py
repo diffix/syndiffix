@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import random
 
 import numpy as np
@@ -12,6 +13,15 @@ from .common import *
 from .interval import Interval, snap_interval
 from .microdata import get_null_mapping
 from .tree import *
+
+
+def _dimension_interval(data: DataFrame, dimension: int) -> Interval:
+    min = data.iloc[:, dimension].min()
+    max = data.iloc[:, dimension].max()
+    if math.isnan(min):
+        assert math.isnan(max)
+        min = max = 0.0
+    return Interval(min, max)
 
 
 class Forest:
@@ -42,7 +52,7 @@ class Forest:
         self.columns = tuple(data.columns)
         self.dimensions = len(self.columns)
 
-        actual_intervals = tuple(Interval(data.iloc[:, i].min(), data.iloc[:, i].max()) for i in range(self.dimensions))
+        actual_intervals = tuple(_dimension_interval(data, i) for i in range(self.dimensions))
         self.null_mappings = tuple(get_null_mapping(interval) for interval in actual_intervals)
         for interval, null_mapping in zip(actual_intervals, self.null_mappings):
             interval.expand(null_mapping)
