@@ -190,7 +190,7 @@ def solve(context: ClusteringContext) -> Clusters:
     assert context.bucketization_params.clustering_max_cluster_weight > 1.0
     num_cols = context.num_columns
 
-    if num_cols < 3:
+    if num_cols <= 4:
         # Build a cluster that includes everything.
         return Clusters(initial_cluster=[ColumnId(i) for i in range(num_cols)], derived_clusters=[])
 
