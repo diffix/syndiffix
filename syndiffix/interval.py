@@ -11,8 +11,7 @@ class Interval:
     max: float
 
     def __post_init__(self) -> None:
-        if self.min > self.max:
-            raise TypeError("Interval.min > Interval.max")
+        assert self.min <= self.max
 
     def size(self) -> float:
         return self.max - self.min
@@ -52,8 +51,10 @@ class Interval:
         return interval.min < self.max and interval.max > self.min
 
     def expand(self, value: float) -> None:
-        self.min = min(value, self.min)
-        self.max = max(value, self.max)
+        if value > self.max:
+            self.max = value
+        elif value < self.min:
+            self.min = value
 
 
 Intervals = tuple[Interval, ...]
