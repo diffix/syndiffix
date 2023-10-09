@@ -24,20 +24,15 @@ def floor_by(n: float, x: float) -> float:
     return math.floor(x / n) * n
 
 
-def build_clusters(context: ClusteringContext, permutation: list[ColumnId]) -> Clusters:
+def build_clusters(context: ClusteringContext, col_weights: list[float], permutation: list[ColumnId]) -> Clusters:
     merge_thresh = context.bucketization_params.clustering_merge_threshold
     max_weight = context.bucketization_params.clustering_max_cluster_weight
 
     dependency_matrix = context.dependency_matrix
-    entropy_1_dim = context.entropy_1dim
-
-    def col_weight_by_id(col: ColumnId) -> float:
-        return col_weight(entropy_1_dim[col])
 
     clusters: list[MutableCluster] = []
-
     if context.main_column is not None:
-        clusters = [MutableCluster(columns={context.main_column}, total_entropy=col_weight_by_id(context.main_column))]
+        clusters = [MutableCluster(columns={context.main_column}, total_entropy=col_weights[context.main_column])]
         permutation = [col for col in permutation if col != context.main_column]
 
     # For each column in the permutation, we find the "best" cluster that has available space.
@@ -55,7 +50,7 @@ def build_clusters(context: ClusteringContext, permutation: list[ColumnId]) -> C
 
             # Skip if below threshold or above weight limit.
             if average_quality < merge_thresh or (
-                len(cluster.columns) > DERIVED_COLS_MIN and cluster.total_entropy + col_weight_by_id(col) > capacity
+                len(cluster.columns) > DERIVED_COLS_MIN and cluster.total_entropy + col_weights[col] > capacity
             ):
                 continue
 
@@ -66,9 +61,9 @@ def build_clusters(context: ClusteringContext, permutation: list[ColumnId]) -> C
 
         if best_cluster is not None:
             best_cluster.columns.add(col)
-            best_cluster.total_entropy += col_weight_by_id(col)
+            best_cluster.total_entropy += col_weights[col]
         else:
-            clusters.append(MutableCluster(columns={col}, total_entropy=col_weight_by_id(col)))
+            clusters.append(MutableCluster(columns={col}, total_entropy=col_weights[col]))
 
     derived_clusters: list[DerivedCluster] = []
     available_columns = clusters[0].columns.copy()
@@ -96,11 +91,11 @@ def build_clusters(context: ClusteringContext, permutation: list[ColumnId]) -> C
 
         best_stitch_col = context.main_column if context.main_column is not None else best_stitch_columns[0][0]
         stitch_columns.add(best_stitch_col)
-        total_weight += col_weight_by_id(best_stitch_col)
+        total_weight += col_weights[best_stitch_col]
 
         for c_left, _dep_avg, dep_max in best_stitch_columns:
             if c_left != best_stitch_col and dep_max >= merge_thresh:
-                weight = col_weight_by_id(c_left)
+                weight = col_weights[c_left]
                 if total_weight + weight <= max_weight:
                     stitch_columns.add(c_left)
                     total_weight += weight
@@ -159,8 +154,10 @@ def _do_solve(context: ClusteringContext) -> Clusters:
         copy[i], copy[j] = solution[j], solution[i]
         return copy
 
+    col_weights = list(col_weight(col) for col in context.entropy_1dim)
+
     def evaluate(solution: list[ColumnId]) -> float:
-        clusters = build_clusters(context, solution)
+        clusters = build_clusters(context, col_weights, solution)
         return clustering_quality(context, clusters)
 
     # Solver state
@@ -186,7 +183,7 @@ def _do_solve(context: ClusteringContext) -> Clusters:
 
         temperature = next_temperature(temperature)
 
-    return build_clusters(context, best_solution)
+    return build_clusters(context, col_weights, best_solution)
 
 
 def solve(context: ClusteringContext) -> Clusters:
