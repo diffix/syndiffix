@@ -16,7 +16,7 @@ DERIVED_COLS_RESERVED = 0.5
 DERIVED_COLS_RATIO = 0.7
 
 
-def col_weight(entropy: float) -> float:
+def _col_weight(entropy: float) -> float:
     return 1.0 + math.sqrt(max(entropy, 1.0))
 
 
@@ -154,7 +154,7 @@ def _do_solve(context: ClusteringContext) -> Clusters:
         copy[i], copy[j] = solution[j], solution[i]
         return copy
 
-    col_weights = list(col_weight(col) for col in context.entropy_1dim)
+    col_weights = list(_col_weight(col) for col in context.entropy_1dim)
 
     def evaluate(solution: list[ColumnId]) -> float:
         clusters = build_clusters(context, col_weights, solution)
@@ -202,7 +202,7 @@ def solve_with_features(
     main_column: ColumnId, main_features: list[ColumnId], forest: Forest, entropy_1dim: Entropy1Dim
 ) -> Clusters:
     num_columns = forest.dimensions
-    main_column_weight = col_weight(entropy_1dim[main_column])
+    main_column_weight = _col_weight(entropy_1dim[main_column])
     max_weight = forest.bucketization_params.clustering_max_cluster_weight
 
     clusters: list[MutableCluster] = []
@@ -216,7 +216,7 @@ def solve_with_features(
     curr.columns.add(main_column)  # Only for the first cluster, in others main is a stitch column.
 
     for feature in main_features:
-        weight = col_weight(entropy_1dim[feature])
+        weight = _col_weight(entropy_1dim[feature])
 
         if len(curr.columns) > 1 and curr.total_entropy + weight > max_weight:
             curr = new_cluster()
