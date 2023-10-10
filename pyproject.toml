@@ -24,6 +24,7 @@ version = "0.1.0"
 description = "Pure Python implementation of SynDiffix"
 authors = ["Open Diffix <hello@open-diffix.org>"]
 readme = "README.md"
+license = "MIT"
 
 [tool.poetry.dependencies]
 python = "^3.10.0"
