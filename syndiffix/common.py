@@ -33,7 +33,7 @@ class Column:
 Columns = tuple[Column, ...]
 
 
-@dataclass
+@dataclass(frozen=True)
 class FlatteningInterval:
     lower: int = 2
     upper: int = 5

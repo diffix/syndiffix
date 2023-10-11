@@ -2,7 +2,7 @@ import hashlib
 import math
 import operator
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import reduce
 from typing import Iterator, cast
 
@@ -85,7 +85,9 @@ def _compact_flattening_intervals(
         return None
 
     total_adjustment = outlier_count.upper + top_count.upper - total_count
-    compactIntervals = outlier_count, top_count
+
+    outlier_upper = outlier_count.upper
+    top_upper = top_count.upper
 
     if total_adjustment > 0:
         # NOTE: At this point we know `0 < total_adjustment <= outlier_range + top_range` (*):
@@ -101,24 +103,24 @@ def _compact_flattening_intervals(
         match (outlier_range >= outlier_adjustment, top_range >= top_adjustment):
             case (True, True):
                 # Both ranges are compacted at same rate.
-                outlier_count.upper -= outlier_adjustment
-                top_count.upper -= top_adjustment
+                outlier_upper -= outlier_adjustment
+                top_upper -= top_adjustment
             case (False, True):
                 # `outlier_count` is compacted as much as possible by `outlier_range`,
                 # `top_count` takes the surplus adjustment.
-                outlier_count.upper = outlier_count.lower
-                top_count.upper -= total_adjustment - outlier_range
+                outlier_upper = outlier_count.lower
+                top_upper -= total_adjustment - outlier_range
             case (True, False):
                 # Vice versa.
-                outlier_count.upper -= total_adjustment - top_range
-                top_count.upper = top_count.lower
+                outlier_upper -= total_adjustment - top_range
+                top_upper = top_count.lower
             case (False, False):
                 # Not possible. Otherwise:
                 # `outlier_range + top_range < outlier_adjustment + top_adjustment = total_adjustment`,
                 # but we knew the opposite was true in (*) above.
                 raise RuntimeError("Impossible interval compacting.")
 
-    return compactIntervals
+    return replace(outlier_count, upper=outlier_upper), replace(top_count, upper=top_upper)
 
 
 @dataclass(frozen=True)

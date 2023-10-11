@@ -18,6 +18,7 @@ def _clustering_context(main_column: Optional[ColumnId], forest: Forest) -> Clus
         dependency_matrix=scores.dependency_matrix,
         entropy_1dim=scores.entropy_1dim,
         total_dependence_per_column=total_per_column,
+        total_dependence=sum(total_per_column),
         anonymization_params=forest.anonymization_context.anonymization_params,
         bucketization_params=forest.bucketization_params,
         rng=forest.unsafe_rng,
