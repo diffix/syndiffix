@@ -141,7 +141,7 @@ def _do_solve(context: ClusteringContext) -> Clusters:
 
     initial_temperature = 5.0
     min_temperature = 3.5e-3
-    alpha = 1.5e-3
+    alpha = 1e-2
 
     def next_temperature(current_temp: float) -> float:
         return current_temp / (1.0 + alpha * current_temp)
