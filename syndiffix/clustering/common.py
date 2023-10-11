@@ -47,6 +47,7 @@ Entropy1Dim = npt.NDArray[np.float_]
 class ClusteringContext:
     dependency_matrix: npt.NDArray[np.float_]
     entropy_1dim: Entropy1Dim
+    total_dependence: float
     total_dependence_per_column: list[float]
     anonymization_params: AnonymizationParams
     bucketization_params: BucketizationParams

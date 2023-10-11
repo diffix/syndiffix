@@ -111,23 +111,25 @@ def build_clusters(context: ClusteringContext, col_weights: list[float], permuta
 def clustering_quality(context: ClusteringContext, clusters: Clusters) -> float:
     dependency_matrix = context.dependency_matrix
 
-    unsatisfied_dependencies = context.total_dependence_per_column.copy()
+    unsatisfied_dependence = context.total_dependence
 
     def visit_pairs(columns: list[ColumnId]) -> None:
+        nonlocal unsatisfied_dependence
+
         for i in range(1, len(columns)):
             col_a = columns[i]
 
             for j in range(i):
                 col_b = columns[j]
-                unsatisfied_dependencies[col_a] -= dependency_matrix[col_a, col_b]
-                unsatisfied_dependencies[col_b] -= dependency_matrix[col_b, col_a]
+                unsatisfied_dependence -= dependency_matrix[col_a, col_b]
+                unsatisfied_dependence -= dependency_matrix[col_b, col_a]
 
     visit_pairs(clusters.initial_cluster)
 
     for _, stitch_columns, derived_columns in clusters.derived_clusters:
         visit_pairs(stitch_columns + derived_columns)
 
-    return sum(unsatisfied_dependencies) / (2.0 * len(unsatisfied_dependencies))
+    return unsatisfied_dependence / (2.0 * context.num_columns)
 
 
 def _do_solve(context: ClusteringContext) -> Clusters:
