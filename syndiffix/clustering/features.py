@@ -121,6 +121,7 @@ def _preprocess(
 
 
 def _split(df: pd.DataFrame, column: str, one_hot_X: bool) -> tuple[pd.DataFrame, dict[str, str], pd.DataFrame]:
+    df = df.dropna(axis=0)
     X, X_inv = _preprocess(df.drop(column, axis=1), one_hot_encode=one_hot_X)
     y, _ = _preprocess(df[[column]], one_hot_encode=False)
     return X, X_inv, y
