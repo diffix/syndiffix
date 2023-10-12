@@ -142,13 +142,14 @@ def _compact_smallest_intervals(node: Node, smallest_intervals: Intervals) -> No
 def _get_per_subnode_intervals_lists(smallest_intervals: Intervals, subbuckets: list[Buckets]) -> list[list[Intervals]]:
     assert len(smallest_intervals) == len(subbuckets)
     dimensions = len(smallest_intervals)
-    per_subnode_intervals_lists: list[list[Intervals]] = [[] * dimensions]
+    per_subnode_intervals_lists: list[list[Intervals]] = [[]] * dimensions
 
     for combination_index, combination in enumerate(generate_combinations(dimensions - 1, dimensions)):
-        smallest_intervals = get_items_combination(combination, smallest_intervals)
-        for bucket in subbuckets[combination_index]:
-            if all(smallest_intervals[i].contains_interval(bucket.intervals[i]) for i in range(dimensions)):
-                per_subnode_intervals_lists[combination_index].extend([bucket.intervals] * bucket.count)
+        # For every subnode, gather only the subintervals that are contained in the corresponding smallest intervals.
+        subsmallest_intervals = get_items_combination(combination, smallest_intervals)
+        for subbucket in subbuckets[combination_index]:
+            if all(subsmallest_intervals[i].contains_interval(subbucket.intervals[i]) for i in range(dimensions - 1)):
+                per_subnode_intervals_lists[combination_index].extend([subbucket.intervals] * subbucket.count)
 
     return per_subnode_intervals_lists
 
@@ -173,8 +174,8 @@ def _match_subintervals(
         dimension_interval_list = per_dimension_interval_lists[dimension_index]
 
         # Create a random match between the selected sub-intervals in order to avoid biases in the output.
-        subnode_intervals = subnode_intervals_list[_non_sticky_rng.randint(0, len(subnode_intervals_list))]
-        dimension_interval = dimension_interval_list[_non_sticky_rng.randint(0, len(dimension_interval_list))]
+        subnode_intervals = subnode_intervals_list[_non_sticky_rng.randint(0, len(subnode_intervals_list) - 1)]
+        dimension_interval = dimension_interval_list[_non_sticky_rng.randint(0, len(dimension_interval_list) - 1)]
 
         yield (*subnode_intervals[:dimension_index], dimension_interval, *subnode_intervals[dimension_index:])
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, replace
-from typing import Iterator, NewType, Union, cast
+from typing import Iterator, NewType, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -206,8 +206,8 @@ class Branch(Node):
 
         # Set child's subnodes to the matching-interval children of the parent's subnodes.
         subnodes = tuple(
-            cast(Branch, subnode).children.get(Branch._remove_dimension_from_index(dim_index, child_index))
-            if subnode is Branch
+            subnode.children.get(Branch._remove_dimension_from_index(dim_index, child_index))
+            if isinstance(subnode, Branch)
             else None
             for dim_index, subnode in enumerate(self.subnodes)
         )
