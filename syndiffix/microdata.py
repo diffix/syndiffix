@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from bisect import bisect_left
 from itertools import islice
 from os.path import commonprefix
 from random import Random
@@ -110,8 +111,9 @@ class StringConvertor(DataConvertor):
         return ColumnType.STRING
 
     def to_float(self, value: Value) -> float:
-        value = cast(str, value)
-        return float(self.value_map.index(value))
+        index = bisect_left(self.value_map, cast(str, value))
+        assert index >= 0 and index < len(self.value_map)
+        return float(index)
 
     def from_interval(self, interval: Interval) -> MicrodataValue:
         if interval.is_singularity():
