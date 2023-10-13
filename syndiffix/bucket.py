@@ -55,7 +55,7 @@ def _get_subbuckets(node: Node, harvested_nodes: BucketsCache) -> list[Buckets]:
 
 def _get_smallest_intervals(subbuckets: list[Buckets]) -> Intervals:
     dimensions = len(subbuckets)
-    cumulative_intervals: list[list[Interval | None]] = [[None] * dimensions] * dimensions
+    cumulative_intervals: list[list[Interval | None]] = [[None] * dimensions for _ in range(dimensions)]
 
     for combination_index, combination in enumerate(generate_combinations(dimensions - 1, dimensions)):
         for bucket in subbuckets[combination_index]:
@@ -68,7 +68,7 @@ def _get_smallest_intervals(subbuckets: list[Buckets]) -> Intervals:
                     case cumulative_interval:
                         cumulative_interval = cast(Interval, cumulative_interval)  # Needed to silence the type checker.
                         cumulative_interval.min = min(cumulative_interval.min, bucket_interval.min)
-                        cumulative_interval.max = min(cumulative_interval.max, bucket_interval.max)
+                        cumulative_interval.max = max(cumulative_interval.max, bucket_interval.max)
 
     return tuple(
         min(filter(None, intervals), key=lambda interval: interval.size()) for intervals in cumulative_intervals
@@ -77,7 +77,7 @@ def _get_smallest_intervals(subbuckets: list[Buckets]) -> Intervals:
 
 def _get_per_dimension_interval_lists(smallest_intervals: Intervals, subbuckets: list[Buckets]) -> list[list[Interval]]:
     dimensions = len(subbuckets)
-    per_dimension_interval_lists: list[list[Interval]] = [[]] * dimensions
+    per_dimension_interval_lists: list[list[Interval]] = [[] for _ in range(dimensions)]
 
     for subnode_buckets, subnode_combination in zip(subbuckets, generate_combinations(dimensions - 1, dimensions)):
         for interval_index, dimension_index in enumerate(subnode_combination):
@@ -142,7 +142,7 @@ def _compact_smallest_intervals(node: Node, smallest_intervals: Intervals) -> No
 def _get_per_subnode_intervals_lists(smallest_intervals: Intervals, subbuckets: list[Buckets]) -> list[list[Intervals]]:
     assert len(smallest_intervals) == len(subbuckets)
     dimensions = len(smallest_intervals)
-    per_subnode_intervals_lists: list[list[Intervals]] = [[]] * dimensions
+    per_subnode_intervals_lists: list[list[Intervals]] = [[] for _ in range(dimensions)]
 
     for combination_index, combination in enumerate(generate_combinations(dimensions - 1, dimensions)):
         # For every subnode, gather only the subintervals that are contained in the corresponding smallest intervals.
