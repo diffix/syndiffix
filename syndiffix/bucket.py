@@ -68,7 +68,7 @@ def _get_smallest_intervals(subbuckets: list[Buckets]) -> Intervals:
                     case cumulative_interval:
                         cumulative_interval = cast(Interval, cumulative_interval)  # Needed to silence the type checker.
                         cumulative_interval.min = min(cumulative_interval.min, bucket_interval.min)
-                        cumulative_interval.max = min(cumulative_interval.max, bucket_interval.max)
+                        cumulative_interval.max = max(cumulative_interval.max, bucket_interval.max)
 
     return tuple(
         min(filter(None, intervals), key=lambda interval: interval.size()) for intervals in cumulative_intervals
