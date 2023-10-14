@@ -36,7 +36,7 @@ class Synthesizer(object):
             aids = pd.DataFrame({"RowIndex": range(1, len(raw_data) + 1)})
             counters_factory: CountersFactory = UniqueAidCountersFactory()
         else:
-            counters_factory = GenericAidCountersFactory(len(aids.columns), bucketization_params.range_low_threshold)
+            counters_factory = GenericAidCountersFactory(len(aids.columns))
 
         self.raw_dtypes = raw_data.dtypes
 

@@ -1,7 +1,5 @@
 from abc import ABC, abstractmethod
 
-from pybloom_live import BloomFilter  # type: ignore
-
 from .anonymizer import *
 from .common import *
 
@@ -32,20 +30,17 @@ class IRowCounter(ABC):
 
 
 class GenericAidEntityCounter(IEntityCounter):
-    def __init__(self, dimensions: int, estimated_count: int) -> None:
-        self.aid_sets = [BloomFilter(capacity=estimated_count, error_rate=0.02) for _ in range(dimensions)]
-        self.counts = [0] * dimensions
-        self.seeds = [Hash(0)] * dimensions
+    def __init__(self, dimensions: int) -> None:
+        self.aid_sets: list[set[Hash]] = [set() for _ in range(dimensions)]
 
     def add(self, aids: Hashes) -> None:
-        for i, aid in enumerate(aids):
-            if aid != 0 and aid not in self.aid_sets[i]:
-                self.aid_sets[i].add(aid)
-                self.counts[i] += 1
-                self.seeds[i] ^= aid
+        for aid_set, aid in zip(self.aid_sets, aids):
+            if aid != 0:
+                aid_set.add(aid)
 
     def is_low_count(self, salt: bytes, params: SuppressionParams) -> bool:
-        return is_low_count(salt, params, list(zip(self.counts, self.seeds)))
+        aid_trackers = [(len(aid_set), seed_from_aid_set(aid_set)) for aid_set in self.aid_sets]
+        return is_low_count(salt, params, aid_trackers)
 
 
 class GenericAidRowCounter(IRowCounter):
@@ -104,12 +99,11 @@ class UniqueAidCountersFactory(CountersFactory):
 
 
 class GenericAidCountersFactory(CountersFactory):
-    def __init__(self, dimensions: int, estimated_count: int) -> None:
+    def __init__(self, dimensions: int) -> None:
         self.dimensions = dimensions
-        self.estimated_count = estimated_count
 
     def create_row_counter(self) -> IRowCounter:
         return GenericAidRowCounter(self.dimensions)
 
     def create_entity_counter(self) -> IEntityCounter:
-        return GenericAidEntityCounter(self.dimensions, self.estimated_count)
+        return GenericAidEntityCounter(self.dimensions)

@@ -516,16 +516,6 @@ files = [
 dev = ["pre-commit", "tox"]
 testing = ["pytest", "pytest-benchmark"]
 
-[[package]]
-name = "pybloom-live"
-version = "4.0.0"
-description = "Bloom filter: A Probabilistic data structure"
-optional = false
-python-versions = "*"
-files = [
-    {file = "pybloom_live-4.0.0.tar.gz", hash = "sha256:99545c5d3b05bd388b5491e36b823b706830a686ba18b4c19063d08de5321110"},
-]
-
 [package.dependencies]
 bitarray = ">=0.3.4"
 xxhash = ">=3.0.0"

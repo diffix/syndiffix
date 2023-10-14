@@ -50,10 +50,6 @@ def _crypto_hash_salted_seed(salt: bytes, seed: Hash) -> Hash:
     return Hash(int.from_bytes(hash[:8], "little"))
 
 
-def _seed_from_aid_set(aid_set: Iterable[Hash]) -> Hash:
-    return reduce(operator.xor, aid_set, Hash(0))
-
-
 def _hash_bytes(b: bytes) -> Hash:
     hash = hashlib.blake2b(b, digest_size=8).digest()
     return Hash(int.from_bytes(hash, "little"))
@@ -148,7 +144,7 @@ def _flatten_contributions(aid_contributions: AidContributions, context: Anonymi
         key=operator.itemgetter(1, 0),
     )
 
-    flat_seed = _seed_from_aid_set(aid for aid, _ in sorted_value_counts[: outlier_interval.upper + top_interval.upper])
+    flat_seed = seed_from_aid_set(aid for aid, _ in sorted_value_counts[: outlier_interval.upper + top_interval.upper])
     flat_seed = _crypto_hash_salted_seed(anon_params.salt, flat_seed)
     outlier_count = _random_uniform(outlier_interval, _mix_seed("outlier", flat_seed))
     top_count = _random_uniform(top_interval, _mix_seed("top", flat_seed))
@@ -170,7 +166,7 @@ def _flatten_contributions(aid_contributions: AidContributions, context: Anonymi
     noise_scale = max(flattened_avg, 0.5 * top_group_average)
     noise_sd = anon_params.layer_noise_sd * noise_scale
 
-    aid_seed = _seed_from_aid_set(aid_contributions.value_counts)
+    aid_seed = seed_from_aid_set(aid_contributions.value_counts)
     noise = _generate_noise(anon_params.salt, "noise", noise_sd, (context.bucket_seed, aid_seed))
 
     return _AidCount(flattened_sum + flattened_unaccounted_for, flattening, noise_sd, noise)
@@ -227,7 +223,7 @@ def _money_round_noise(noise_sd: float) -> float:
 
 
 def hash_strings(strings: Iterator[str]) -> Hash:
-    return _seed_from_aid_set(_hash_string(string) for string in set(strings))
+    return seed_from_aid_set(_hash_string(string) for string in set(strings))
 
 
 def hash_aid(aid: object) -> Hash:
@@ -239,6 +235,10 @@ def hash_aid(aid: object) -> Hash:
         return _hash_string(cast(str, aid))
     else:
         raise NotImplementedError("Unsupported AID type!")
+
+
+def seed_from_aid_set(aid_set: Iterable[Hash]) -> Hash:
+    return reduce(operator.xor, aid_set, Hash(0))
 
 
 # Returns whether any of the AID value sets has a low count.
