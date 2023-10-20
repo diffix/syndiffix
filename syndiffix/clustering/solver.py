@@ -20,11 +20,11 @@ def _col_weight(entropy: float) -> float:
     return 1.0 + math.sqrt(max(entropy, 1.0))
 
 
-def floor_by(n: float, x: float) -> float:
+def _floor_by(n: float, x: float) -> float:
     return math.floor(x / n) * n
 
 
-def build_clusters(context: ClusteringContext, col_weights: list[float], permutation: list[ColumnId]) -> Clusters:
+def _build_clusters(context: ClusteringContext, col_weights: list[float], permutation: list[ColumnId]) -> Clusters:
     merge_thresh = context.bucketization_params.clustering_merge_threshold
     max_weight = context.bucketization_params.clustering_max_cluster_weight
 
@@ -108,7 +108,7 @@ def build_clusters(context: ClusteringContext, col_weights: list[float], permuta
     return Clusters(initial_cluster=initial_cluster, derived_clusters=derived_clusters)
 
 
-def clustering_quality(context: ClusteringContext, clusters: Clusters) -> float:
+def _clustering_quality(context: ClusteringContext, clusters: Clusters) -> float:
     dependency_matrix = context.dependency_matrix
 
     unsatisfied_dependence = context.total_dependence
@@ -130,6 +130,20 @@ def clustering_quality(context: ClusteringContext, clusters: Clusters) -> float:
         visit_pairs(stitch_columns + derived_columns)
 
     return unsatisfied_dependence / (2.0 * context.num_columns)
+
+
+def _simplify_clusters(clusters: Clusters) -> Clusters:
+    if len(clusters.derived_clusters) == 0:
+        return clusters
+
+    # If we have clusters in shape initial=[a], derived=[[a],[b,c]]..., we merge to initial=[a,b,c].
+    derived_cluster = clusters.derived_clusters[0]
+    if set(clusters.initial_cluster) == set(derived_cluster[1]):
+        return Clusters(
+            initial_cluster=derived_cluster[1] + derived_cluster[2], derived_clusters=clusters.derived_clusters[1:]
+        )
+
+    return clusters
 
 
 def _do_solve(context: ClusteringContext) -> Clusters:
@@ -159,8 +173,8 @@ def _do_solve(context: ClusteringContext) -> Clusters:
     col_weights = list(_col_weight(col) for col in context.entropy_1dim)
 
     def evaluate(solution: list[ColumnId]) -> float:
-        clusters = build_clusters(context, col_weights, solution)
-        return clustering_quality(context, clusters)
+        clusters = _build_clusters(context, col_weights, solution)
+        return _clustering_quality(context, clusters)
 
     # Solver state
     current_solution = initial_solution
@@ -185,7 +199,7 @@ def _do_solve(context: ClusteringContext) -> Clusters:
 
         temperature = next_temperature(temperature)
 
-    return build_clusters(context, col_weights, best_solution)
+    return _simplify_clusters(_build_clusters(context, col_weights, best_solution))
 
 
 def solve(context: ClusteringContext) -> Clusters:
