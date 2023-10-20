@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from copy import copy
 from dataclasses import dataclass, replace
 from typing import Iterator, NewType, Union
 
@@ -31,12 +32,13 @@ Subnodes = tuple[Union["Node", None], ...]
 
 class Node(ABC):
     def __init__(
-        self, context: Context, subnodes: Subnodes, snapped_intervals: Intervals, actual_intervals: Intervals
+        self, context: Context, subnodes: Subnodes, snapped_intervals: Intervals, actual_intervals: Iterator[Interval]
     ) -> None:
         self.context = context
         self.subnodes = subnodes
         self.snapped_intervals = snapped_intervals
-        self.actual_intervals = actual_intervals
+        # These get mutaded later, we need to create new Interval instances.
+        self.actual_intervals = tuple(copy(interval) for interval in actual_intervals)
         # 0-dim subnodes of 1-dim nodes are not considered stubs.
         self.is_stub = len(subnodes) > 0 and all(subnode is None or subnode.is_stub_subnode() for subnode in subnodes)
         self._stub_subnode_cache: bool | None = None
@@ -130,7 +132,7 @@ class Node(ABC):
 class Leaf(Node):
     def __init__(self, context: Context, subnodes: Subnodes, snapped_intervals: Intervals, initial_row: RowId):
         initial_values = get_items_combination(context.combination, context.data[initial_row])
-        actual_intervals = tuple(Interval(value, value) for value in initial_values)
+        actual_intervals = (Interval(value, value) for value in initial_values)
         super().__init__(context, subnodes, snapped_intervals, actual_intervals)
         self.rows = [initial_row]
 
@@ -176,7 +178,7 @@ class Leaf(Node):
 
 class Branch(Node):
     def __init__(self, leaf: Leaf):
-        super().__init__(leaf.context, leaf.subnodes, leaf.snapped_intervals, leaf.actual_intervals)
+        super().__init__(leaf.context, leaf.subnodes, leaf.snapped_intervals, iter(leaf.actual_intervals))
         self.children: dict[int, Node] = dict()
 
     # Each dimension corresponds to a bit in index, with 0 for the lower interval half and

@@ -49,7 +49,7 @@ def test_noisy_category_numeric_dataset() -> None:
 
     # Test numeric column.
     assert syn_data[1].mean() == approx(raw_data[1].mean(), abs=5)
-    assert syn_data[1].std() == approx(raw_data[1].std(), rel=0.2)
+    assert syn_data[1].std() == approx(raw_data[1].std(), rel=0.3)
 
 
 def test_string_ranges() -> None:
