@@ -176,9 +176,9 @@ def select_features_ml(df: pd.DataFrame, column: str, one_hot_X: bool = False) -
         )
 
     if _is_categorical(y[column]):
-        estimator = DecisionTreeClassifier()
+        estimator = DecisionTreeClassifier(random_state=0)
     else:
-        estimator = DecisionTreeRegressor()
+        estimator = DecisionTreeRegressor(random_state=0)
 
     rfecv = RFECV(estimator=estimator)
     rfecv.fit(X, y)
