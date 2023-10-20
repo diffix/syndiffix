@@ -56,6 +56,9 @@ class Interval:
         elif value < self.min:
             self.min = value
 
+    def copy(self) -> Interval:
+        return Interval(self.min, self.max)
+
 
 Intervals = tuple[Interval, ...]
 

@@ -1,4 +1,3 @@
-from copy import copy
 from dataclasses import dataclass
 from itertools import chain
 from math import floor
@@ -66,7 +65,7 @@ def _get_smallest_intervals(subbuckets: list[Buckets]) -> Intervals:
                 match cumulative_intervals[dimension_index][combination_index]:
                     case None:
                         # This gets mutated later, so we need to create a new Interval instance.
-                        cumulative_intervals[dimension_index][combination_index] = copy(bucket_interval)
+                        cumulative_intervals[dimension_index][combination_index] = bucket_interval.copy()
                     case cumulative_interval:
                         cumulative_interval = cast(Interval, cumulative_interval)  # Needed to silence the type checker.
                         cumulative_interval.min = min(cumulative_interval.min, bucket_interval.min)

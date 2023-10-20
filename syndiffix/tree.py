@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from copy import copy
 from dataclasses import dataclass, replace
 from typing import Iterator, NewType, Union
 
@@ -38,7 +37,7 @@ class Node(ABC):
         self.subnodes = subnodes
         self.snapped_intervals = snapped_intervals
         # These get mutaded later, we need to create new Interval instances.
-        self.actual_intervals = tuple(copy(interval) for interval in actual_intervals)
+        self.actual_intervals = tuple(interval.copy() for interval in actual_intervals)
         # 0-dim subnodes of 1-dim nodes are not considered stubs.
         self.is_stub = len(subnodes) > 0 and all(subnode is None or subnode.is_stub_subnode() for subnode in subnodes)
         self._stub_subnode_cache: bool | None = None
