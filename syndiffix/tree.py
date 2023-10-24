@@ -36,7 +36,7 @@ class Node(ABC):
         self.context = context
         self.subnodes = subnodes
         self.snapped_intervals = snapped_intervals
-        # These get mutaded later, we need to create new Interval instances.
+        # These get mutated later, we need to create new Interval instances.
         self.actual_intervals = tuple(interval.copy() for interval in actual_intervals)
         # 0-dim subnodes of 1-dim nodes are not considered stubs.
         self.is_stub = len(subnodes) > 0 and all(subnode is None or subnode.is_stub_subnode() for subnode in subnodes)
