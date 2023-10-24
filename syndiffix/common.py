@@ -60,7 +60,6 @@ class BucketizationParams:
 
 @dataclass(frozen=True)
 class AnonymizationParams:
-    aid_columns: tuple[str, ...] = tuple()
     # Each noise layer seed is salted before being hashed with a cryptographically-strong algorithm.
     # The salt value needs to have at least 64 bits of entropy (equal or higher than that of the seed).
     # If the provided salt is empty, a per-system salt will be generated and used.
