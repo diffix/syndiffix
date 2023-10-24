@@ -1,6 +1,10 @@
+import os
+import secrets
+from dataclasses import replace
 from typing import Optional
 
 import pandas as pd
+from appdirs import user_config_dir
 
 from .bucket import harvest
 from .clustering.common import MicrodataRow
@@ -14,6 +18,21 @@ from .counters import (
 )
 from .forest import Forest
 from .microdata import apply_convertors, generate_microdata, get_convertor
+
+
+def _get_default_salt() -> bytes:
+    config_dir = user_config_dir("SynDiffix", "OpenDiffix")
+    salt_file_path = os.path.join(config_dir, "salt.bin")
+
+    if not os.path.isfile(salt_file_path):
+        salt = secrets.randbits(64).to_bytes(8, "little")
+
+        os.makedirs(config_dir, exist_ok=True)
+        with open(salt_file_path, "wb") as file:
+            file.write(salt)
+
+    with open(salt_file_path, "rb") as file:
+        return file.read()
 
 
 class Synthesizer(object):
@@ -32,6 +51,12 @@ class Synthesizer(object):
         bucketization_params: BucketizationParams = BucketizationParams(),
         clustering: ClusteringStrategy = DefaultClustering(),
     ) -> None:
+        if anonymization_context.anonymization_params.salt == b"":
+            anonymization_context = replace(
+                anonymization_context,
+                anonymization_params=replace(anonymization_context.anonymization_params, salt=_get_default_salt()),
+            )
+
         if aids is None:
             aids = pd.DataFrame({"RowIndex": range(1, len(raw_data) + 1)})
             counters_factory: CountersFactory = UniqueAidCountersFactory()
@@ -79,3 +104,7 @@ class Synthesizer(object):
         syn_data = syn_data.astype({column: self.raw_dtypes[column] for column in syn_data.columns}, copy=False)
 
         return syn_data
+
+    @property
+    def salt(self) -> bytes:
+        return self.forest.anonymization_context.anonymization_params.salt
