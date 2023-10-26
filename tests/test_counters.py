@@ -4,6 +4,8 @@ from syndiffix.counters import *
 
 from .conftest import *
 
+MAX_LOW_COUNT = 20
+
 
 def _hash1(i: int) -> Hashes:
     return np.array([Hash(i)])
@@ -33,7 +35,7 @@ def test_unique_aid_noisy_count() -> None:
 
 
 def test_generic_aid_low_count() -> None:
-    counter = GenericAidCountersFactory(1).create_entity_counter()
+    counter = GenericAidCountersFactory(1, MAX_LOW_COUNT).create_entity_counter()
     assert counter.is_low_count(SALT, NOISELESS_SUPPRESSION)
     counter.add(_hash1(1))
     counter.add(_hash1(2))
@@ -51,7 +53,7 @@ def test_generic_aid_low_count() -> None:
 
 
 def test_generic_aid_noisy_count() -> None:
-    counter = GenericAidCountersFactory(1).create_row_counter()
+    counter = GenericAidCountersFactory(1, MAX_LOW_COUNT).create_row_counter()
     assert counter.noisy_count(NOISELESS_CONTEXT) == 0
     counter.add(_hash1(1))
     counter.add(_hash1(2))
@@ -75,7 +77,7 @@ def test_generic_aid_noisy_count() -> None:
 
 
 def test_multi_aid_low_count() -> None:
-    counter = GenericAidCountersFactory(2).create_entity_counter()
+    counter = GenericAidCountersFactory(2, MAX_LOW_COUNT).create_entity_counter()
     assert counter.is_low_count(SALT, NOISELESS_SUPPRESSION)
     counter.add(_hash2(1, 1))
     counter.add(_hash2(2, 2))
@@ -97,7 +99,7 @@ def test_multi_aid_low_count() -> None:
 
 def test_multi_aid_noisy_count_identical() -> None:
     # Both AIDs are identical - a simple sanity test.
-    counter = GenericAidCountersFactory(2).create_row_counter()
+    counter = GenericAidCountersFactory(2, MAX_LOW_COUNT).create_row_counter()
     assert counter.noisy_count(NOISELESS_CONTEXT) == 0
     counter.add(_hash2(1, 1))
     counter.add(_hash2(2, 2))
@@ -121,7 +123,7 @@ def test_multi_aid_noisy_count_identical() -> None:
 
 
 def test_multi_aid_noisy_count_divergent() -> None:
-    counter = GenericAidCountersFactory(2).create_row_counter()
+    counter = GenericAidCountersFactory(2, MAX_LOW_COUNT).create_row_counter()
     assert counter.noisy_count(NOISELESS_CONTEXT) == 0
     counter.add(_hash2(1, 1))
     counter.add(_hash2(2, 2))

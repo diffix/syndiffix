@@ -61,7 +61,13 @@ class Synthesizer(object):
             aids = pd.DataFrame({"RowIndex": range(1, len(raw_data) + 1)})
             counters_factory: CountersFactory = UniqueAidCountersFactory()
         else:
-            counters_factory = GenericAidCountersFactory(len(aids.columns))
+            low_count_params = anonymization_context.anonymization_params.low_count_params
+            # Stop counting entities over 4 standard deviations more than the mean of the range threshold.
+            # `low_mean_gap` is the number of standard deviations between `low_threshold` and desired mean.
+            max_low_count = bucketization_params.range_low_threshold + int(
+                (low_count_params.low_mean_gap + 4.0) * low_count_params.layer_sd
+            )
+            counters_factory = GenericAidCountersFactory(len(aids.columns), max_low_count)
 
         self.raw_dtypes = raw_data.dtypes
 

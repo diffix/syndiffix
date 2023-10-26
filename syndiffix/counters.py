@@ -1,5 +1,8 @@
 from abc import ABC, abstractmethod
 
+import numpy as np
+import numpy.typing as npt
+
 from .anonymizer import *
 from .common import *
 
@@ -30,16 +33,27 @@ class IRowCounter(ABC):
 
 
 class GenericAidEntityCounter(IEntityCounter):
-    def __init__(self, dimensions: int) -> None:
-        self.aid_sets: list[set[Hash]] = [set() for _ in range(dimensions)]
+    def __init__(self, dimensions: int, max_low_count: int) -> None:
+        self.aid_sets: list[npt.NDArray[Hash]] = [np.zeros(max_low_count, Hash) for _ in range(dimensions)]
+        self.aid_counts: list[int] = [0 for _ in range(dimensions)]
+        self.max_low_count = max_low_count
 
     def add(self, aids: Hashes) -> None:
-        for aid_set, aid in zip(self.aid_sets, aids):
-            if aid != 0:
-                aid_set.add(aid)
+        for dimension, aid in enumerate(aids):
+            aid_set = self.aid_sets[dimension]
+            count = self.aid_counts[dimension]
+            if count < self.max_low_count and aid != 0 and aid not in aid_set:
+                aid_set[count] = aid
+                self.aid_counts[dimension] = count + 1
 
     def is_low_count(self, salt: bytes, params: SuppressionParams) -> bool:
-        aid_trackers = [(len(aid_set), seed_from_aid_set(aid_set)) for aid_set in self.aid_sets]
+        aid_trackers = [
+            (count, seed_from_aid_set(aids))
+            for count, aids in zip(self.aid_counts, self.aid_sets)
+            if count < self.max_low_count
+        ]
+        if aid_trackers == []:
+            return False
         return is_low_count(salt, params, aid_trackers)
 
 
@@ -99,11 +113,12 @@ class UniqueAidCountersFactory(CountersFactory):
 
 
 class GenericAidCountersFactory(CountersFactory):
-    def __init__(self, dimensions: int) -> None:
+    def __init__(self, dimensions: int, max_low_count: int) -> None:
         self.dimensions = dimensions
+        self.max_low_count = max_low_count
 
     def create_row_counter(self) -> IRowCounter:
         return GenericAidRowCounter(self.dimensions)
 
     def create_entity_counter(self) -> IEntityCounter:
-        return GenericAidEntityCounter(self.dimensions)
+        return GenericAidEntityCounter(self.dimensions, self.max_low_count)
