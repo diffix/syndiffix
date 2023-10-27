@@ -46,6 +46,13 @@ class ClusteringStrategy(ABC):
         pass
 
 
+class NoClustering(ClusteringStrategy):
+    def build_clusters(self, forest: Forest) -> tuple[Clusters, Entropy1Dim]:
+        # Build and return a cluster that includes everything, don't measure entropy.
+        single_cluster = Clusters(initial_cluster=[ColumnId(i) for i in range(forest.dimensions)], derived_clusters=[])
+        return single_cluster, np.zeros(forest.dimensions, np.float64)
+
+
 class DefaultClustering(ClusteringStrategy):
     def __init__(self, main_column: Optional[ColumnId | str] = None) -> None:
         self.main_column = main_column
