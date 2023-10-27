@@ -4,15 +4,14 @@ from ..common import *
 from ..forest import Forest
 
 
-def should_sample(forest: Forest) -> bool:
+def should_sample(forest: Forest, sample_size: int) -> bool:
     dimensions = forest.dimensions
     num_rows = len(forest.data)
-    num_samples = forest.bucketization_params.clustering_table_sample_size
 
-    if num_samples >= num_rows:
+    if sample_size >= num_rows:
         return False
 
-    sampled_2dim_work = dimensions * dimensions * num_samples
+    sampled_2dim_work = dimensions * dimensions * sample_size
     full_2dim_work = (num_rows * dimensions * 3) // 2
 
     total_work_with_sample = sampled_2dim_work + full_2dim_work
@@ -21,7 +20,7 @@ def should_sample(forest: Forest) -> bool:
     return total_work_without_sample > total_work_with_sample * 2
 
 
-def sample_forest(forest: Forest) -> Forest:
+def sample_forest(forest: Forest, sample_size: int) -> Forest:
     sampling_anon_context = replace(
         forest.anonymization_context,
         anonymization_params=replace(
@@ -34,8 +33,7 @@ def sample_forest(forest: Forest) -> Forest:
     # New RNG prevents `forest.Random` from being affected by sample size.
     rng = forest.derive_unsafe_rng()
 
-    num_samples = forest.bucketization_params.clustering_table_sample_size
-    random_indices = rng.sample(range(len(forest.orig_data)), num_samples)
+    random_indices = rng.sample(range(len(forest.orig_data)), sample_size)
 
     sampled_aids = forest.orig_aids.iloc[random_indices]
     sampled_data = forest.orig_data.iloc[random_indices]

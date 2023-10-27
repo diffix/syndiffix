@@ -46,22 +46,46 @@ class ClusteringStrategy(ABC):
         pass
 
 
+class NoClustering(ClusteringStrategy):
+    def build_clusters(self, forest: Forest) -> tuple[Clusters, Entropy1Dim]:
+        # Build and return a cluster that includes everything, don't measure entropy.
+        single_cluster = Clusters(initial_cluster=[ColumnId(i) for i in range(forest.dimensions)], derived_clusters=[])
+        return single_cluster, np.zeros(forest.dimensions, np.float_)
+
+
 class DefaultClustering(ClusteringStrategy):
-    def __init__(self, main_column: Optional[ColumnId | str] = None) -> None:
+    def __init__(
+        self,
+        main_column: Optional[ColumnId | str] = None,
+        sample_size: int = 1000,
+        max_weight: float = 15.0,
+        merge_threshold: float = 0.1,
+    ) -> None:
         self.main_column = main_column
+        self.sample_size = sample_size
+        self.max_weight = max_weight
+        self.merge_threshold = merge_threshold
 
     def build_clusters(self, forest: Forest) -> tuple[Clusters, Entropy1Dim]:
-        sampled_forest = sampling.sample_forest(forest) if sampling.should_sample(forest) else forest
+        sampled_forest = (
+            sampling.sample_forest(forest, self.sample_size)
+            if sampling.should_sample(forest, self.sample_size)
+            else forest
+        )
         main_column = _resolve_column_id(forest, self.main_column) if self.main_column else None
         clustering_context = _clustering_context(main_column=main_column, forest=sampled_forest)
-        return solver.solve(clustering_context), clustering_context.entropy_1dim
+        clusters = solver.solve(clustering_context, self.max_weight, self.merge_threshold)
+        return clusters, clustering_context.entropy_1dim
 
 
 class MlClustering(ClusteringStrategy):
-    def __init__(self, target_column: ColumnId | str, drop_non_features: bool = False) -> None:
+    def __init__(
+        self, target_column: ColumnId | str, drop_non_features: bool = False, max_weight: float = 15.0
+    ) -> None:
         # TODO: Accept ML parameters.
         self.target_column = target_column
         self.drop_non_features = drop_non_features
+        self.max_weight = max_weight
 
     def build_clusters(self, forest: Forest) -> tuple[Clusters, Entropy1Dim]:
         # TODO: Support forest sampling for faster ML feature detection?
@@ -82,6 +106,7 @@ class MlClustering(ClusteringStrategy):
             solver.solve_with_features(
                 _resolve_column_id(forest, self.target_column),
                 feature_ids,
+                self.max_weight,
                 forest,
                 entropy_1dim,
             ),
