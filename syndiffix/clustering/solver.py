@@ -24,10 +24,13 @@ def _floor_by(n: float, x: float) -> float:
     return math.floor(x / n) * n
 
 
-def _build_clusters(context: ClusteringContext, col_weights: list[float], permutation: list[ColumnId]) -> Clusters:
-    merge_thresh = context.bucketization_params.clustering_merge_threshold
-    max_weight = context.bucketization_params.clustering_max_cluster_weight
-
+def _build_clusters(
+    context: ClusteringContext,
+    max_weight: float,
+    merge_thresh: float,
+    col_weights: list[float],
+    permutation: list[ColumnId],
+) -> Clusters:
     dependency_matrix = context.dependency_matrix
 
     clusters: list[MutableCluster] = []
@@ -146,7 +149,7 @@ def _simplify_clusters(clusters: Clusters) -> Clusters:
     return clusters
 
 
-def _do_solve(context: ClusteringContext) -> Clusters:
+def _do_solve(context: ClusteringContext, max_weight: float, merge_thresh: float) -> Clusters:
     num_cols = context.num_columns
     rng = context.rng
 
@@ -173,7 +176,7 @@ def _do_solve(context: ClusteringContext) -> Clusters:
     col_weights = list(_col_weight(col) for col in context.entropy_1dim)
 
     def evaluate(solution: list[ColumnId]) -> float:
-        clusters = _build_clusters(context, col_weights, solution)
+        clusters = _build_clusters(context, max_weight, merge_thresh, col_weights, solution)
         return _clustering_quality(context, clusters)
 
     # Solver state
@@ -199,11 +202,11 @@ def _do_solve(context: ClusteringContext) -> Clusters:
 
         temperature = next_temperature(temperature)
 
-    return _simplify_clusters(_build_clusters(context, col_weights, best_solution))
+    return _simplify_clusters(_build_clusters(context, max_weight, merge_thresh, col_weights, best_solution))
 
 
-def solve(context: ClusteringContext) -> Clusters:
-    assert context.bucketization_params.clustering_max_cluster_weight > 1.0
+def solve(context: ClusteringContext, max_weight: float, merge_thresh: float) -> Clusters:
+    assert max_weight > 1.0
     num_cols = context.num_columns
 
     if num_cols <= 4:
@@ -211,15 +214,14 @@ def solve(context: ClusteringContext) -> Clusters:
         return Clusters(initial_cluster=[ColumnId(i) for i in range(num_cols)], derived_clusters=[])
 
     # TODO: Do an exact search up to a number of columns.
-    return _do_solve(context)
+    return _do_solve(context, max_weight, merge_thresh)
 
 
 def solve_with_features(
-    main_column: ColumnId, main_features: list[ColumnId], forest: Forest, entropy_1dim: Entropy1Dim
+    main_column: ColumnId, main_features: list[ColumnId], max_weight: float, forest: Forest, entropy_1dim: Entropy1Dim
 ) -> Clusters:
     num_columns = forest.dimensions
     main_column_weight = _col_weight(entropy_1dim[main_column])
-    max_weight = forest.bucketization_params.clustering_max_cluster_weight
 
     clusters: list[MutableCluster] = []
 
