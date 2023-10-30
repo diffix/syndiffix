@@ -138,7 +138,7 @@ def measure_dependence(forest: Forest, col_x: ColumnId, col_y: ColumnId) -> Depe
                 )
                 walk(child_xy, child_x, node_y)
         else:
-            for id_child_xy in range(3):
+            for id_child_xy in range(4):
                 id_child_x = _get_bit(id_child_xy, 1)
                 id_child_y = _get_bit(id_child_xy, 0)
 
