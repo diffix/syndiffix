@@ -31,3 +31,45 @@ Prerequisites: [poetry](https://python-poetry.org/docs/#installing-with-the-offi
 2. Format: `black . && isort .`
 3. Test: `pytest .`
 4. Lints and checks: `flake8 . && mypy . && black --check . && isort . --check`
+
+## Usage
+
+Usage can be as simple as:
+
+```py
+raw_data = load_dataframe()
+syn_data = Synthesizer(raw_data).sample()
+```
+
+This will create a new Pandas DataFrame containing synthetic data, with the same number of columns and the same
+number of rows as in the input data.
+Default settings will be used and each row in the original data has to belong to a different protected entity.
+
+The script [example_simple.py](example_simple.py) shows a simple example on how to process all data in a CSV file
+that holds a different protected entity in each row.
+
+### Processing data with multiple rows per-entity
+
+If the same entity can have multiple rows belonging to it, then a dataframe with the AID values has to be passed separately:
+
+```py
+raw_data = load_dataframe()
+aid_columns = ["aid1", "aid2"]
+aids = raw_data[aid_columns]
+raw_data = raw_data.drop(columns=aid_columns)
+syn_data = Synthesizer(raw_data, aids=aids).sample()
+```
+
+The AID columns should not be a part of the input data to the synthesizer.
+
+### Changing anonymization settings
+
+TODO
+
+### Changing bucketization settings
+
+TODO
+
+### Changing clustering strategy
+
+TODO
