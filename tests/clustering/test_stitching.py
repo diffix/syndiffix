@@ -27,7 +27,10 @@ def test_stitching() -> None:
         (ColumnId(2), ColumnId(3)): build_rows(col_c_right, col_d),
     }
 
-    metadata = StitchingMetadata(dimension_is_integral=[True, True, True], entropy_1dim=np.array([1.0, 2.0, 3.0]))
+    metadata = StitchingMetadata(
+        dimension_is_integral=[True, True, True, True],
+        entropy_1dim=np.array([1.0, 1.0, 1.0, 1.0]),
+    )
 
     def materialize_tree(_forest: Forest, columns: list[ColumnId]) -> tuple[list[MicrodataRow], Combination]:
         combination = tuple(sorted(columns))

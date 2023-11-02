@@ -1,4 +1,6 @@
+import json
 import os
+from typing import Any
 
 from syndiffix.common import *
 from syndiffix.counters import UniqueAidCountersFactory
@@ -32,6 +34,11 @@ def create_forest(
     )
 
 
+def _test_file_dir(filename: str) -> str:
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(current_dir, "data", filename)
+
+
 def _load_csv(path: str, columns: list[str] | None) -> pd.DataFrame:
     df = pd.read_csv(path, keep_default_na=False, na_values=[""], low_memory=False)
     if columns is not None:
@@ -45,6 +52,10 @@ def load_forest(
     anon_params: AnonymizationParams | None = None,
     bucketization_params: BucketizationParams | None = None,
 ) -> Forest:
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    data_df = _load_csv(os.path.join(current_dir, "data", filename), columns)
+    data_df = _load_csv(_test_file_dir(filename), columns)
     return create_forest(data_df, anon_params=anon_params, bucketization_params=bucketization_params)
+
+
+def load_json(filename: str) -> Any:
+    with open(_test_file_dir(filename), "r", encoding="utf-8") as file:
+        return json.load(file)

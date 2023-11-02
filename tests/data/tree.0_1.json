@@ -1,0 +1,109 @@
+{
+  "ranges": [
+    [0.0, 8.0],
+    [0.0, 4.0]
+  ],
+  "count": 32,
+  "children": {
+    "0": {
+      "ranges": [
+        [0.0, 4.0],
+        [0.0, 2.0]
+      ],
+      "count": 8,
+      "children": {
+        "0": {
+          "ranges": [
+            [0.0, 2.0],
+            [0.0, 1.0]
+          ],
+          "count": 4,
+          "children": null
+        },
+        "1": {
+          "ranges": [
+            [0.0, 2.0],
+            [1.0, 2.0]
+          ],
+          "count": 4,
+          "children": null
+        }
+      }
+    },
+    "1": {
+      "ranges": [
+        [0.0, 4.0],
+        [2.0, 4.0]
+      ],
+      "count": 8,
+      "children": {
+        "2": {
+          "ranges": [
+            [2.0, 4.0],
+            [2.0, 3.0]
+          ],
+          "count": 4,
+          "children": null
+        },
+        "3": {
+          "ranges": [
+            [2.0, 4.0],
+            [3.0, 4.0]
+          ],
+          "count": 4,
+          "children": null
+        }
+      }
+    },
+    "2": {
+      "ranges": [
+        [4.0, 8.0],
+        [0.0, 2.0]
+      ],
+      "count": 8,
+      "children": {
+        "0": {
+          "ranges": [
+            [4.0, 6.0],
+            [0.0, 1.0]
+          ],
+          "count": 4,
+          "children": null
+        },
+        "1": {
+          "ranges": [
+            [4.0, 6.0],
+            [1.0, 2.0]
+          ],
+          "count": 4,
+          "children": null
+        }
+      }
+    },
+    "3": {
+      "ranges": [
+        [4.0, 8.0],
+        [2.0, 4.0]
+      ],
+      "count": 8,
+      "children": {
+        "2": {
+          "ranges": [
+            [6.0, 8.0],
+            [2.0, 3.0]
+          ],
+          "count": 4,
+          "children": null
+        },
+        "3": {
+          "ranges": [
+            [6.0, 8.0],
+            [3.0, 4.0]
+          ],
+          "count": 4,
+          "children": null
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "ranges": [[0.0, 2.0]],
+  "count": 32,
+  "children": {
+    "0": {
+      "ranges": [[0.0, 1.0]],
+      "count": 16,
+      "children": null
+    },
+    "1": {
+      "ranges": [[1.0, 2.0]],
+      "count": 16,
+      "children": null
+    }
+  }
+}
