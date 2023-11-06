@@ -35,10 +35,7 @@ def test_stitching() -> None:
 
     def materialize_tree(_forest: Forest, columns: list[ColumnId]) -> tuple[list[MicrodataRow], Combination]:
         combination = tuple(sorted(columns))
-        return (
-            microtables[combination],
-            combination,
-        )
+        return (microtables[combination], combination)
 
     clusters = Clusters(
         initial_cluster=[ColumnId(0), ColumnId(1)],
@@ -86,10 +83,7 @@ def test_patching() -> None:
 
     def materialize_tree(_forest: Forest, columns: list[ColumnId]) -> tuple[list[MicrodataRow], Combination]:
         combination = tuple(sorted(columns))
-        return (
-            microtables[combination],
-            combination,
-        )
+        return (microtables[combination], combination)
 
     clusters = Clusters(
         initial_cluster=[ColumnId(0), ColumnId(1)],
