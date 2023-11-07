@@ -62,14 +62,68 @@ syn_data = Synthesizer(raw_data, aids=aids).sample()
 
 The AID columns should not be a part of the input data to the synthesizer.
 
-### Changing anonymization settings
+### Changing anonymization parameters
 
-TODO
+Anonymization parameters determine how much raw data is suppressed and distorted before synthesis.
+To modify default parameters, pass a custom instance of the `AnonymizationParams` class
+to the `Synthesizer` object. For example:
 
-### Changing bucketization settings
+```py
+Synthesizer(raw_data, anonymization_params=AnonymizationParams(layer_noise_sd=1.5))
+```
 
-TODO
+The following parameters are available:
+
+- `salt`: noise salt for the data source; if empty, an automatically generated value is used.
+
+- `low_count_params`: parameters for the low-count filter.
+
+- `outlier_count`: outlier count interval used during flattening.
+
+- `top_count`: top count interval used during flattening.
+
+- `layer_noise_sd`: stddev of each noise layer added to row counts.
+
+### Changing bucketization parameters
+
+Bucketization parameters determine how raw data is aggregated before synthesis.
+To modify default parameters, pass a custom instance of the `BucketizationParams` class
+to the `Synthesizer` object. For example:
+
+```py
+Synthesizer(raw_data, bucketization_params=BucketizationParams(precision_limit_depth_threshold=10))
+```
+
+The following parameters are available:
+
+- `singularity_low_threshold`: low threshold for a singularity bucket.
+
+- `range_low_threshold`: low threshold for a range bucket.
+
+- `precision_limit_row_fraction`: the fraction of rows needed for splitting nodes, in addition to passing the
+  low-count filter, when the tree depth goes beyond the depth threshold.
+
+- `precision_limit_depth_threshold`: tree depth threshold below which nodes are split only if they pass the low-count filter.
 
 ### Changing clustering strategy
 
-TODO
+Clustering strategy determines how columns are grouped together in the forest of trees used for
+anonymization and aggregation. Anonymized buckets are harvested from those trees, synthetic
+microdata tables are generated, and are then stitched together into a single output table.
+To change the clustering strategy, pass an instance for a sub-class of the `ClusteringStrategy` class
+to the `Synthesizer` object. For example:
+
+```py
+Synthesizer(raw_data, clustering=NoClustering())
+```
+
+The following strategies are available:
+
+- `NoClustering`: - strategy that disables clustering; puts all columns in a single cluster.
+
+- `DefaultClustering`: - general-purpose clustering strategy; columns are grouped together in order to maximize the
+  chi-square dependence measurement values of the generated clusters; a main column that gets put into every cluster
+  can be specified, in order to improve output quality for that specific column.
+
+- `MLClustering`: - strategy for ML tasks; main feature columns for a target column are automatically detected and
+  grouped together with the target column in the order of their ML prediction-test scores.
