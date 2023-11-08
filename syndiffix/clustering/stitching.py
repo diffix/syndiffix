@@ -62,7 +62,7 @@ def _align_length(rng: Random, length: int, microtable: list[MicrodataRow]) -> l
 
 
 def _find_indexes(subset: Sequence[ColumnId], superset: Sequence[ColumnId]) -> list[ColumnIndex]:
-    return [ColumnIndex(superset.index(c)) if c in superset else ColumnIndex(-1) for c in subset]
+    return [ColumnIndex(superset.index(c)) for c in subset]
 
 
 def _locate_columns(left_combination: Combination, right_combination: Combination) -> list[ColumnLocation]:
@@ -92,7 +92,7 @@ def _binary_search(rows: list[MicrodataRow], column: ColumnIndex, target: float,
 
     mid = (start + end_exclusive) // 2
 
-    if rows[mid][column][1] >= target:
+    if rows[mid][column][MICRODATA_FLOAT_VALUE] >= target:
         if mid == 0 or rows[mid - 1][column][MICRODATA_FLOAT_VALUE] < target:
             return mid
         else:
@@ -318,8 +318,8 @@ def _do_stitch(
             entropy_1dim=metadata.entropy_1dim[stitch_columns],
             stitch_max_values=[r.max for r in root_stitch_intervals],
             stitch_is_integral=[metadata.dimension_is_integral[col] for col in stitch_columns],
-            left_stitch_indexes=_find_indexes(left_combination, stitch_columns),
-            right_stitch_indexes=_find_indexes(right_combination, stitch_columns),
+            left_stitch_indexes=_find_indexes(stitch_columns, left_combination),
+            right_stitch_indexes=_find_indexes(stitch_columns, right_combination),
             result_rows=result_rows,
         ),
     )
