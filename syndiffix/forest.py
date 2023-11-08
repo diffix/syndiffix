@@ -27,13 +27,13 @@ def _dimension_interval(data: DataFrame, dimension: int) -> Interval:
 class Forest:
     def __init__(
         self,
-        anonymization_context: AnonymizationContext,
+        anonymization_params: AnonymizationParams,
         bucketization_params: BucketizationParams,
         counters_factory: CountersFactory,
         aids: DataFrame,
         data: DataFrame,
     ) -> None:
-        self.anonymization_context = anonymization_context
+        self.anonymization_params = anonymization_params
         self.bucketization_params = bucketization_params
         self.counters_factory = counters_factory
         self.orig_aids = aids
@@ -89,9 +89,8 @@ class Forest:
         subnodes = self._get_subnodes(combination)
 
         # Hash column names into the tree's base bucket seed.
-        columns_hash = hash_strings(map(str, get_items_combination(combination, self.columns)))
-        base_seed = columns_hash ^ self.anonymization_context.bucket_seed
-        anonymization_context = replace(self.anonymization_context, bucket_seed=base_seed)
+        base_seed = hash_strings(map(str, get_items_combination(combination, self.columns)))
+        anonymization_context = AnonymizationContext(base_seed, self.anonymization_params)
 
         row_limit = (
             noisy_row_limit(

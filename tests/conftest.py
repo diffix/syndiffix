@@ -29,9 +29,7 @@ def create_forest(
     aid_df = DataFrame(range(1, len(data_df) + 1)) if aid_df is None else aid_df
     anon_params = anon_params if anon_params is not None else AnonymizationParams()
     bucketization_params = bucketization_params if bucketization_params else BucketizationParams()
-    return Forest(
-        AnonymizationContext(Hash(0), anon_params), bucketization_params, UniqueAidCountersFactory(), aid_df, data_df
-    )
+    return Forest(anon_params, bucketization_params, UniqueAidCountersFactory(), aid_df, data_df)
 
 
 def _test_file_dir(filename: str) -> str:

@@ -8,7 +8,7 @@ from .conftest import *
 
 def test_noiseless_category_category_dataset() -> None:
     raw_data = pd.DataFrame([["x", True], ["x", False], ["y", True]] * 15)
-    syn_data = Synthesizer(raw_data, anonymization_context=NOISELESS_CONTEXT).sample()
+    syn_data = Synthesizer(raw_data, anonymization_params=NOISELESS_PARAMS).sample()
     assert raw_data.value_counts().to_list() == syn_data.value_counts().to_list()
 
 
@@ -38,7 +38,7 @@ def test_noisy_category_numeric_dataset() -> None:
             [False, 0],
         ]
     )
-    syn_data = Synthesizer(raw_data, anonymization_context=NOISELESS_CONTEXT).sample()
+    syn_data = Synthesizer(raw_data, anonymization_params=NOISELESS_PARAMS).sample()
 
     # Test categorical column.
     raw_category_counts = raw_data[0].value_counts()
@@ -89,7 +89,7 @@ def test_string_ranges() -> None:
             "Gerichtstraße 4",
         ]
     )
-    syn_data = Synthesizer(raw_data, anonymization_context=NOISELESS_CONTEXT).sample()
+    syn_data = Synthesizer(raw_data, anonymization_params=NOISELESS_PARAMS).sample()
 
     assert len(syn_data) == approx(len(raw_data), rel=0.1)
 

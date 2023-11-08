@@ -47,21 +47,18 @@ class Synthesizer(object):
         self,
         raw_data: pd.DataFrame,
         aids: Optional[pd.DataFrame] = None,
-        anonymization_context: AnonymizationContext = AnonymizationContext(Hash(0), AnonymizationParams()),
+        anonymization_params: AnonymizationParams = AnonymizationParams(),
         bucketization_params: BucketizationParams = BucketizationParams(),
         clustering: ClusteringStrategy = DefaultClustering(),
     ) -> None:
-        if anonymization_context.anonymization_params.salt == b"":
-            anonymization_context = replace(
-                anonymization_context,
-                anonymization_params=replace(anonymization_context.anonymization_params, salt=_get_default_salt()),
-            )
+        if anonymization_params.salt == b"":
+            anonymization_params = replace(anonymization_params, salt=_get_default_salt())
 
         if aids is None:
             aids = pd.DataFrame({"RowIndex": range(1, len(raw_data) + 1)})
             counters_factory: CountersFactory = UniqueAidCountersFactory()
         else:
-            low_count_params = anonymization_context.anonymization_params.low_count_params
+            low_count_params = anonymization_params.low_count_params
             # Stop counting entities over 4 standard deviations more than the mean of the range threshold.
             # `low_mean_gap` is the number of standard deviations between `low_threshold` and desired mean.
             max_low_count = bucketization_params.range_low_threshold + int(
@@ -75,7 +72,7 @@ class Synthesizer(object):
         self.column_is_integral = [self._is_integral(convertor.column_type()) for convertor in self.column_convertors]
 
         self.forest = Forest(
-            anonymization_context,
+            anonymization_params,
             bucketization_params,
             counters_factory,
             aids,
@@ -113,4 +110,4 @@ class Synthesizer(object):
 
     @property
     def salt(self) -> bytes:
-        return self.forest.anonymization_context.anonymization_params.salt
+        return self.forest.anonymization_params.salt

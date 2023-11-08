@@ -21,13 +21,10 @@ def should_sample(forest: Forest, sample_size: int) -> bool:
 
 
 def sample_forest(forest: Forest, sample_size: int) -> Forest:
-    sampling_anon_context = replace(
-        forest.anonymization_context,
-        anonymization_params=replace(
-            forest.anonymization_context.anonymization_params,
-            low_count_params=SuppressionParams(low_threshold=2, layer_sd=0.5, low_mean_gap=1.0),
-            layer_noise_sd=0.0,
-        ),
+    sampling_anon_params = replace(
+        forest.anonymization_params,
+        low_count_params=SuppressionParams(low_threshold=2, layer_sd=0.5, low_mean_gap=1.0),
+        layer_noise_sd=0.0,
     )
 
     # New RNG prevents `forest.Random` from being affected by sample size.
@@ -39,7 +36,7 @@ def sample_forest(forest: Forest, sample_size: int) -> Forest:
     sampled_data = forest.orig_data.iloc[random_indices]
 
     return Forest(
-        sampling_anon_context,
+        sampling_anon_params,
         forest.bucketization_params,
         forest.counters_factory,
         sampled_aids,
