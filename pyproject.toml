@@ -20,11 +20,14 @@ ignore_missing_imports = true
 
 [tool.poetry]
 name = "syndiffix"
-version = "0.1.0"
-description = "Pure Python implementation of SynDiffix"
+version = "1.0.0a0"
+description = "Python implementation of the SynDiffix synthetic data generation mechanism."
 authors = ["Open Diffix <hello@open-diffix.org>"]
 readme = "README.md"
 license = "MIT"
+homepage = "https://open-diffix.org/"
+repository = "https://github.com/diffix/syndiffix"
+
 
 [tool.poetry.dependencies]
 python = "^3.10.0"
