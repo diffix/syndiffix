@@ -91,6 +91,7 @@ class Synthesizer(object):
                     buckets,
                     get_items_combination_list(combination, self.column_convertors),
                     get_items_combination_list(combination, forest.null_mappings),
+                    forest.derive_unsafe_rng(),
                 ),
                 combination,
             )

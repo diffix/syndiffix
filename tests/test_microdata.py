@@ -1,4 +1,5 @@
 from io import StringIO
+from random import Random
 
 import pandas as pd
 import pytest
@@ -6,6 +7,8 @@ import pytest
 from syndiffix.bucket import Bucket
 from syndiffix.interval import Interval
 from syndiffix.microdata import *
+
+_rng = Random(0)
 
 
 def _get_convertors(df: pd.DataFrame) -> list[DataConvertor]:
@@ -70,7 +73,7 @@ def test_generates_real_microdata() -> None:
         Bucket((Interval(-1.0, 2.0), Interval(3.0, 3.0)), 3),
         Bucket((Interval(-11.0, 12.0), Interval(13.0, 13.0)), 10),
     ]
-    microdata = generate_microdata(buckets, [RealConvertor(), RealConvertor()], [1234.0, 1234.0])
+    microdata = generate_microdata(buckets, [RealConvertor(), RealConvertor()], [1234.0, 1234.0], _rng)
 
     assert len(microdata) == 13
 
@@ -91,7 +94,7 @@ def test_generates_bool_microdata() -> None:
     buckets = [
         Bucket((Interval(0.0, 0.0), Interval(1.0, 1.0)), 3),
     ]
-    microdata = generate_microdata(buckets, [BooleanConvertor(), BooleanConvertor()], [1234.0, 1234.0])
+    microdata = generate_microdata(buckets, [BooleanConvertor(), BooleanConvertor()], [1234.0, 1234.0], _rng)
     for row in microdata:
         assert len(row) == 2
         for value in row:
@@ -103,7 +106,7 @@ def test_generates_int_microdata() -> None:
     buckets = [
         Bucket((Interval(1.1, 1.6), Interval(3.0, 3.0)), 3),
     ]
-    microdata = generate_microdata(buckets, [IntegerConvertor(), IntegerConvertor()], [1234.0, 1234.0])
+    microdata = generate_microdata(buckets, [IntegerConvertor(), IntegerConvertor()], [1234.0, 1234.0], _rng)
     for row in microdata:
         assert len(row) == 2
         for value in row:
@@ -115,7 +118,7 @@ def test_generates_timestamp_microdata() -> None:
     buckets = [
         Bucket((Interval(0.0, 1.5432), Interval(3.0, 3.0)), 3),
     ]
-    microdata = generate_microdata(buckets, [TimestampConvertor(), TimestampConvertor()], [1234.0, 1234.0])
+    microdata = generate_microdata(buckets, [TimestampConvertor(), TimestampConvertor()], [1234.0, 1234.0], _rng)
     for row in microdata:
         assert len(row) == 2
         for value in row:
@@ -131,7 +134,7 @@ def test_generates_string_microdata() -> None:
         Bucket((Interval(0.0, 3.0), Interval(4.0, 4.0), Interval(5.0, 5.0)), 3),
     ]
     convertor = StringConvertor(["aa", "ab", "ac", "ad", "c", "d"])
-    microdata = generate_microdata(buckets, [convertor] * 3, [1234.0] * 3)
+    microdata = generate_microdata(buckets, [convertor] * 3, [1234.0] * 3, _rng)
     for row in microdata:
         assert len(row) == 3
         for value in row:
@@ -149,18 +152,18 @@ def test_generates_nulls() -> None:
     buckets = [
         Bucket((Interval(1.2, 1.2),), 3),
     ]
-    microdata = generate_microdata(buckets, [IntegerConvertor()], [1.2])
+    microdata = generate_microdata(buckets, [IntegerConvertor()], [1.2], _rng)
     for row in microdata[:3]:
         assert len(row) == 1
         assert row[0] == (None, 1.2)
 
 
 def test_empty_bucket_list() -> None:
-    assert generate_microdata([], [], []) == []
+    assert generate_microdata([], [], [], _rng) == []
 
 
 def test_empty_interval_list() -> None:
-    assert generate_microdata([Bucket((), 2)], [], []) == [[], []]
+    assert generate_microdata([Bucket((), 2)], [], [], _rng) == [[], []]
 
 
 def test_prepares_null_mappings() -> None:
