@@ -60,11 +60,13 @@ class DefaultClustering(ClusteringStrategy):
         sample_size: int = 1000,
         max_weight: float = 15.0,
         merge_threshold: float = 0.1,
+        solver_alpha: float = 1e-2,
     ) -> None:
         self.main_column = main_column
         self.sample_size = sample_size
         self.max_weight = max_weight
         self.merge_threshold = merge_threshold
+        self.solver_alpha = solver_alpha
 
     def build_clusters(self, forest: Forest) -> tuple[Clusters, Entropy1Dim]:
         sampled_forest = (
@@ -74,7 +76,7 @@ class DefaultClustering(ClusteringStrategy):
         )
         main_column = _resolve_column_id(forest, self.main_column) if self.main_column else None
         clustering_context = _clustering_context(main_column=main_column, forest=sampled_forest)
-        clusters = solver.solve(clustering_context, self.max_weight, self.merge_threshold)
+        clusters = solver.solve(clustering_context, self.max_weight, self.merge_threshold, self.solver_alpha)
         return clusters, clustering_context.entropy_1dim
 
 

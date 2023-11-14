@@ -149,7 +149,7 @@ def _simplify_clusters(clusters: Clusters) -> Clusters:
     return clusters
 
 
-def _do_solve(context: ClusteringContext, max_weight: float, merge_thresh: float) -> Clusters:
+def _do_solve(context: ClusteringContext, max_weight: float, merge_thresh: float, alpha: float) -> Clusters:
     num_cols = context.num_columns
     rng = context.rng
 
@@ -158,7 +158,6 @@ def _do_solve(context: ClusteringContext, max_weight: float, merge_thresh: float
 
     initial_temperature = 5.0
     min_temperature = 3.5e-3
-    alpha = 1e-2
 
     def next_temperature(current_temp: float) -> float:
         return current_temp / (1.0 + alpha * current_temp)
@@ -205,7 +204,7 @@ def _do_solve(context: ClusteringContext, max_weight: float, merge_thresh: float
     return _simplify_clusters(_build_clusters(context, max_weight, merge_thresh, col_weights, best_solution))
 
 
-def solve(context: ClusteringContext, max_weight: float, merge_thresh: float) -> Clusters:
+def solve(context: ClusteringContext, max_weight: float, merge_thresh: float, alpha: float) -> Clusters:
     assert max_weight > 1.0
     num_cols = context.num_columns
 
@@ -214,7 +213,7 @@ def solve(context: ClusteringContext, max_weight: float, merge_thresh: float) ->
         return Clusters(initial_cluster=[ColumnId(i) for i in range(num_cols)], derived_clusters=[])
 
     # TODO: Do an exact search up to a number of columns.
-    return _do_solve(context, max_weight, merge_thresh)
+    return _do_solve(context, max_weight, merge_thresh, alpha)
 
 
 def solve_with_features(
