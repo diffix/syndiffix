@@ -138,7 +138,13 @@ class FeatureSelectionResult:
     encoded_scores: dict
 
 
-def select_features_ml(df: pd.DataFrame, column: str, one_hot_X: bool = False) -> FeatureSelectionResult:
+def select_features_ml(
+    df: pd.DataFrame,
+    column: str,
+    classifier_model: Any | None = None,
+    regressor_model: Any | None = None,
+    one_hot_X: bool = False,
+) -> FeatureSelectionResult:
     X, X_inv, y = _split(df, column, one_hot_X)
 
     if y.shape[0] == 0 or y.shape[1] == 0:
@@ -176,9 +182,9 @@ def select_features_ml(df: pd.DataFrame, column: str, one_hot_X: bool = False) -
         )
 
     if _is_categorical(y[column]):
-        estimator = DecisionTreeClassifier(random_state=0)
+        estimator = classifier_model or DecisionTreeClassifier(random_state=0)
     else:
-        estimator = DecisionTreeRegressor(random_state=0)
+        estimator = regressor_model or DecisionTreeRegressor(random_state=0)
 
     rfecv = RFECV(estimator=estimator)
     rfecv.fit(X, y)

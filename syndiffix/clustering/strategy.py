@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Any, Optional
 
 from ..forest import Forest
 from . import features, measures, sampling, solver
@@ -82,17 +82,29 @@ class DefaultClustering(ClusteringStrategy):
 
 class MlClustering(ClusteringStrategy):
     def __init__(
-        self, target_column: ColumnId | str, drop_non_features: bool = False, max_weight: float = 15.0
+        self,
+        target_column: ColumnId | str,
+        drop_non_features: bool = False,
+        max_weight: float = 15.0,
+        classifier_model: Any | None = None,
+        regressor_model: Any | None = None,
     ) -> None:
         # TODO: Accept ML parameters.
         self.target_column = target_column
         self.drop_non_features = drop_non_features
         self.max_weight = max_weight
+        self.classifier_model = classifier_model
+        self.regressor_model = regressor_model
 
     def build_clusters(self, forest: Forest) -> tuple[Clusters, Entropy1Dim]:
         # TODO: Support forest sampling for faster ML feature detection?
 
-        ml_features = features.select_features_ml(forest.orig_data, _resolve_column_name(forest, self.target_column))
+        ml_features = features.select_features_ml(
+            forest.orig_data,
+            _resolve_column_name(forest, self.target_column),
+            self.classifier_model,
+            self.regressor_model,
+        )
         feature_ids = [_resolve_column_id(forest, feature) for feature in ml_features.k_features]
 
         entropy_1dim = np.array(
