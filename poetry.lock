@@ -93,20 +93,6 @@ files = [
 test = ["pytest (>=6)"]
 
 [[package]]
-name = "fire"
-version = "0.5.0"
-description = "A library for automatically generating command line interfaces."
-optional = false
-python-versions = "*"
-files = [
-    {file = "fire-0.5.0.tar.gz", hash = "sha256:a6b0d49e98c8963910021f92bba66f65ab440da2982b78eb1bbf95a0a34aacc6"},
-]
-
-[package.dependencies]
-six = "*"
-termcolor = "*"
-
-[[package]]
 name = "flake8"
 version = "6.1.0"
 description = "the modular source code checker: pep8 pyflakes and co"
@@ -639,20 +625,6 @@ files = [
 ]
 
 [[package]]
-name = "termcolor"
-version = "2.3.0"
-description = "ANSI color formatting for output in terminal"
-optional = false
-python-versions = ">=3.7"
-files = [
-    {file = "termcolor-2.3.0-py3-none-any.whl", hash = "sha256:3afb05607b89aed0ffe25202399ee0867ad4d3cb4180d98aaf8eefa6a5f7d475"},
-    {file = "termcolor-2.3.0.tar.gz", hash = "sha256:b5b08f68937f138fe92f6c089b99f1e2da0ae56c52b78bf7075fd95420fd9a5a"},
-]
-
-[package.extras]
-tests = ["pytest", "pytest-cov"]
-
-[[package]]
 name = "threadpoolctl"
 version = "3.2.0"
 description = "threadpoolctl"
@@ -710,4 +682,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "4cc22755671aa9713d193d2a05c7f5ece7622059e52c4ca2fc2dc0b7cba61a33"
+content-hash = "0880e50320b8a64e3a70276a2ef9eb0bff09588cd37977c4fc2d0c0d60d7e938"
