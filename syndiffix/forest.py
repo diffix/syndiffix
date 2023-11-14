@@ -59,7 +59,9 @@ class Forest:
         self.snapped_intervals = tuple(snap_interval(interval) for interval in actual_intervals)
 
         # Hash and store AID values.
-        self.aid_data: npt.NDArray[np.uint64] = aids.applymap(hash_aid).to_numpy(Hash)
+        aids = cast(DataFrame, aids.map(hash_aid))  # type: ignore
+        self.aid_data: npt.NDArray[np.uint64] = aids.to_numpy(Hash)
+
         # Arrange data in a numpy array, applying the null mappings to missing values.
         # `DataFrame.fillna` doesn't seem to accept the fill values by index, must build dict.
         null_mappings_dict = dict(zip(data.columns, self.null_mappings))
