@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Any, Optional
 
 from ..forest import Forest
 from . import features, measures, sampling, solver
@@ -60,11 +60,13 @@ class DefaultClustering(ClusteringStrategy):
         sample_size: int = 1000,
         max_weight: float = 15.0,
         merge_threshold: float = 0.1,
+        solver_alpha: float = 1e-2,
     ) -> None:
         self.main_column = main_column
         self.sample_size = sample_size
         self.max_weight = max_weight
         self.merge_threshold = merge_threshold
+        self.solver_alpha = solver_alpha
 
     def build_clusters(self, forest: Forest) -> tuple[Clusters, Entropy1Dim]:
         sampled_forest = (
@@ -74,23 +76,35 @@ class DefaultClustering(ClusteringStrategy):
         )
         main_column = _resolve_column_id(forest, self.main_column) if self.main_column else None
         clustering_context = _clustering_context(main_column=main_column, forest=sampled_forest)
-        clusters = solver.solve(clustering_context, self.max_weight, self.merge_threshold)
+        clusters = solver.solve(clustering_context, self.max_weight, self.merge_threshold, self.solver_alpha)
         return clusters, clustering_context.entropy_1dim
 
 
 class MlClustering(ClusteringStrategy):
     def __init__(
-        self, target_column: ColumnId | str, drop_non_features: bool = False, max_weight: float = 15.0
+        self,
+        target_column: ColumnId | str,
+        drop_non_features: bool = False,
+        max_weight: float = 15.0,
+        classifier_model: Any | None = None,
+        regressor_model: Any | None = None,
     ) -> None:
         # TODO: Accept ML parameters.
         self.target_column = target_column
         self.drop_non_features = drop_non_features
         self.max_weight = max_weight
+        self.classifier_model = classifier_model
+        self.regressor_model = regressor_model
 
     def build_clusters(self, forest: Forest) -> tuple[Clusters, Entropy1Dim]:
         # TODO: Support forest sampling for faster ML feature detection?
 
-        ml_features = features.select_features_ml(forest.orig_data, _resolve_column_name(forest, self.target_column))
+        ml_features = features.select_features_ml(
+            forest.orig_data,
+            _resolve_column_name(forest, self.target_column),
+            self.classifier_model,
+            self.regressor_model,
+        )
         feature_ids = [_resolve_column_id(forest, feature) for feature in ml_features.k_features]
 
         entropy_1dim = np.array(
