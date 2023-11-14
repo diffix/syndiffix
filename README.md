@@ -37,6 +37,8 @@ Prerequisites: [poetry](https://python-poetry.org/docs/#installing-with-the-offi
 Usage can be as simple as:
 
 ```py
+from syndiffix import Synthesizer
+
 raw_data = load_dataframe()
 syn_data = Synthesizer(raw_data).sample()
 ```
@@ -53,6 +55,8 @@ that holds a different protected entity in each row.
 If the same entity can have multiple rows belonging to it, then a dataframe with the AID values has to be passed separately:
 
 ```py
+from syndiffix import Synthesizer
+
 raw_data = load_dataframe()
 aid_columns = ["aid1", "aid2"]
 aids = raw_data[aid_columns]
