@@ -17,7 +17,7 @@ def load_csv(path: str) -> pd.DataFrame:
     # Try to infer datetime columns.
     for col in df.columns[df.dtypes == "object"]:
         try:
-            df[col] = pd.to_datetime(df[col])
+            df[col] = pd.to_datetime(df[col], format="ISO8601")
         except (ParserError, ValueError):
             pass
 
