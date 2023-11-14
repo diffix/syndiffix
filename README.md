@@ -12,31 +12,13 @@ data. Compared to existing open-source and proprietary commercial approaches, Sy
 
 This library implements the SynDiffix method for tabular data synthesis in pure Python.
 
-## Implementation details
-
-A step-by-step description of the algorithm can be found [here](docs/algorithm.md).
-
-A per-dimension range is internally called an interval (and handled by the `Interval` class), in order to avoid
-potential name clashes with the native Python `range` API.
-
-## Installation
-
-Prerequisites: [poetry](https://python-poetry.org/docs/#installing-with-the-official-installer)
-
-1. `poetry install`
-
-## Development
-
-1. Activate `poetry` environment: `poetry shell`. (can skip, then prepend `poetry run` to the next commands)
-2. Format: `black . && isort .`
-3. Test: `pytest .`
-4. Lints and checks: `flake8 . && mypy . && black --check . && isort . --check`
-
 ## Usage
 
 Usage can be as simple as:
 
 ```py
+from syndiffix import Synthesizer
+
 raw_data = load_dataframe()
 syn_data = Synthesizer(raw_data).sample()
 ```
@@ -53,6 +35,8 @@ that holds a different protected entity in each row.
 If the same entity can have multiple rows belonging to it, then a dataframe with the AID values has to be passed separately:
 
 ```py
+from syndiffix import Synthesizer
+
 raw_data = load_dataframe()
 aid_columns = ["aid1", "aid2"]
 aids = raw_data[aid_columns]
@@ -129,3 +113,22 @@ The following strategies are available:
 
 - `MLClustering`: - strategy for ML tasks; main feature columns for a target column are automatically detected and
   grouped together with the target column in the order of their ML prediction-test scores.
+
+## Development
+
+Prerequisites: [poetry](https://python-poetry.org/docs/#installing-with-the-official-installer)
+
+- Installation: `poetry install`
+
+Activate `poetry` environment: `poetry shell`. (can skip, then prepend `poetry run` to the next commands)
+
+- Format: `black . && isort .`
+- Test: `pytest .`
+- Check: `flake8 . && mypy . && black --check . && isort . --check`
+
+### Implementation details
+
+A step-by-step description of the algorithm can be found [here](docs/algorithm.md).
+
+A per-dimension range is internally called an interval (and handled by the `Interval` class), in order to avoid
+potential name clashes with the native Python `range` API.
