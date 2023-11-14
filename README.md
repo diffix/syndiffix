@@ -14,7 +14,7 @@ This library implements the SynDiffix method for tabular data synthesis in pure 
 
 ## Implementation details
 
-A step-by-step description of the algorithm can be found [docs/algorithm.md](here).
+A step-by-step description of the algorithm can be found [here](docs/algorithm.md).
 
 A per-dimension range is internally called an interval (and handled by the `Interval` class), in order to avoid
 potential name clashes with the native Python `range` API.
