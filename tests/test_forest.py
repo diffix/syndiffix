@@ -32,12 +32,12 @@ def test_null_mappings_all_nan_column() -> None:
     assert forest.data[:, 0].tolist() == [1.0, 1.0]
 
 
-def test_aid_hashing() -> None:
+def test_pid_hashing() -> None:
     forest = create_forest(
         DataFrame({"data": [0.0, 0.0, 0.0]}),
-        aid_df=DataFrame({"aid": ["a", None, 1]}),
+        pid_df=DataFrame({"pid": ["a", None, 1]}),
     )
-    assert forest.aid_data.tolist() == [
+    assert forest.pid_data.tolist() == [
         [Hash(3405396810240292928)],
         [Hash(0)],
         [Hash(18232024504446223411)],

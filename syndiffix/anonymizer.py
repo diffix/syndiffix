@@ -10,7 +10,7 @@ from .common import *
 
 
 @dataclass
-class AidContributions:
+class PidContributions:
     value_counts: Counter[Hash] = field(default_factory=Counter)
     unaccounted_for: int = 0
 
@@ -120,15 +120,15 @@ def _compact_flattening_intervals(
 
 
 @dataclass(frozen=True)
-class _AidCount:
+class _PidCount:
     flattened_count: float
     flattening: float
     noise_sd: float
     noise: float
 
 
-def _flatten_contributions(aid_contributions: AidContributions, context: AnonymizationContext) -> _AidCount | None:
-    total_count = len(aid_contributions.value_counts)
+def _flatten_contributions(pid_contributions: PidContributions, context: AnonymizationContext) -> _PidCount | None:
+    total_count = len(pid_contributions.value_counts)
     anon_params = context.anonymization_params
 
     flattening_intervals = _compact_flattening_intervals(anon_params.outlier_count, anon_params.top_count, total_count)
@@ -137,14 +137,14 @@ def _flatten_contributions(aid_contributions: AidContributions, context: Anonymi
 
     outlier_interval, top_interval = flattening_intervals
 
-    # Sort contributions by amount and AID value (to ensure consistency in case of equal contributions).
+    # Sort contributions by amount and PID value (to ensure consistency in case of equal contributions).
     sorted_value_counts = sorted(
-        aid_contributions.value_counts.items(),
+        pid_contributions.value_counts.items(),
         reverse=True,
         key=operator.itemgetter(1, 0),
     )
 
-    flat_seed = seed_from_aid_set(aid for aid, _ in sorted_value_counts[: outlier_interval.upper + top_interval.upper])
+    flat_seed = seed_from_pid_set(pid for pid, _ in sorted_value_counts[: outlier_interval.upper + top_interval.upper])
     flat_seed = _crypto_hash_salted_seed(anon_params.salt, flat_seed)
     outlier_count = _random_uniform(outlier_interval, _mix_seed("outlier", flat_seed))
     top_count = _random_uniform(top_interval, _mix_seed("top", flat_seed))
@@ -158,29 +158,29 @@ def _flatten_contributions(aid_contributions: AidContributions, context: Anonymi
         max(contribution - top_group_average, 0) for _, contribution in sorted_value_counts[:outlier_count]
     )
 
-    real_sum = aid_contributions.value_counts.total()
-    flattened_unaccounted_for = max(aid_contributions.unaccounted_for - flattening, 0)
+    real_sum = pid_contributions.value_counts.total()
+    flattened_unaccounted_for = max(pid_contributions.unaccounted_for - flattening, 0)
     flattened_sum = real_sum - flattening
     flattened_avg = flattened_sum / total_count
 
     noise_scale = max(flattened_avg, 0.5 * top_group_average)
     noise_sd = anon_params.layer_noise_sd * noise_scale
 
-    aid_seed = seed_from_aid_set(aid_contributions.value_counts)
-    noise = _generate_noise(anon_params.salt, "noise", noise_sd, (context.bucket_seed, aid_seed))
+    pid_seed = seed_from_pid_set(pid_contributions.value_counts)
+    noise = _generate_noise(anon_params.salt, "noise", noise_sd, (context.bucket_seed, pid_seed))
 
-    return _AidCount(flattened_sum + flattened_unaccounted_for, flattening, noise_sd, noise)
+    return _PidCount(flattened_sum + flattened_unaccounted_for, flattening, noise_sd, noise)
 
 
-def _anonymized_sum(aid_counts: Iterable[_AidCount]) -> tuple[float, float]:
+def _anonymized_sum(pid_counts: Iterable[_PidCount]) -> tuple[float, float]:
     # We might end up with multiple different flattened counts that have the same amount of flattening.
-    # This could be the result of some AID values being null for one of the AIDs, while there were still
-    # overall enough AIDs to produce a flattened count.
+    # This could be the result of some PID values being null for one of the PIDs, while there were still
+    # overall enough PIDs to produce a flattened count.
     # In these cases, we want to use the largest flattened count to minimize unnecessary flattening.
-    flattening = max(aid_counts, key=lambda count: (count.flattening, count.flattened_count))
+    flattening = max(pid_counts, key=lambda count: (count.flattening, count.flattened_count))
 
     # For determinism, resolve draws using the maximum absolute noise value.
-    noise = max(aid_counts, key=lambda count: (count.noise_sd, abs(count.noise)))
+    noise = max(pid_counts, key=lambda count: (count.noise_sd, abs(count.noise)))
 
     return flattening.flattened_count + noise.noise, noise.noise_sd
 
@@ -223,29 +223,29 @@ def _money_round_noise(noise_sd: float) -> float:
 
 
 def hash_strings(strings: Iterator[str]) -> Hash:
-    return seed_from_aid_set(_hash_string(string) for string in set(strings))
+    return seed_from_pid_set(_hash_string(string) for string in set(strings))
 
 
-def hash_aid(aid: object) -> Hash:
-    if not aid:
+def hash_pid(pid: object) -> Hash:
+    if not pid:
         return Hash(0)
-    elif isinstance(aid, int):
-        return _hash_int(cast(int, aid))
-    elif isinstance(aid, str):
-        return _hash_string(cast(str, aid))
+    elif isinstance(pid, int):
+        return _hash_int(cast(int, pid))
+    elif isinstance(pid, str):
+        return _hash_string(cast(str, pid))
     else:
-        raise NotImplementedError("Unsupported AID type!")
+        raise NotImplementedError("Unsupported PID type!")
 
 
-def seed_from_aid_set(aid_set: Iterable[Hash]) -> Hash:
-    return reduce(operator.xor, aid_set, Hash(0))
+def seed_from_pid_set(pid_set: Iterable[Hash]) -> Hash:
+    return reduce(operator.xor, pid_set, Hash(0))
 
 
-# Returns whether any of the AID value sets has a low count.
-def is_low_count(salt: bytes, params: SuppressionParams, aid_trackers: list[tuple[int, Hash]]) -> bool:
-    assert len(aid_trackers) > 0
+# Returns whether any of the PID value sets has a low count.
+def is_low_count(salt: bytes, params: SuppressionParams, pid_trackers: list[tuple[int, Hash]]) -> bool:
+    assert len(pid_trackers) > 0
 
-    for count, seed in aid_trackers:
+    for count, seed in pid_trackers:
         if count < params.low_threshold:
             return True
 
@@ -261,17 +261,17 @@ def is_low_count(salt: bytes, params: SuppressionParams, aid_trackers: list[tupl
 
 
 def count_multiple_contributions(
-    context: AnonymizationContext, contributions_list: list[AidContributions]
+    context: AnonymizationContext, contributions_list: list[PidContributions]
 ) -> CountResult | None:
     assert len(contributions_list) > 0
 
     flattened_contributions = [_flatten_contributions(contributions, context) for contributions in contributions_list]
 
-    # If any of the AIDs had insufficient data to produce a sensible flattening, we have to abort anonymization.
+    # If any of the PIDs had insufficient data to produce a sensible flattening, we have to abort anonymization.
     if not all(flattened_contributions):
         return None
 
-    value, noise_sd = _anonymized_sum(cast(list[_AidCount], flattened_contributions))
+    value, noise_sd = _anonymized_sum(cast(list[_PidCount], flattened_contributions))
 
     return CountResult(round(value), _money_round_noise(noise_sd))
 

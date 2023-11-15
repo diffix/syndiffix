@@ -77,7 +77,7 @@ from syndiffix import Synthesizer
 
 df_pid = df_original[["pid_col"]]
 df_original = df_original.drop(columns=["pid_col"])
-df_synthetic = Synthesizer(df_original, aids=df_pid).sample()
+df_synthetic = Synthesizer(df_original, pids=df_pid).sample()
 ```
 
 Note that dropping 'pid_col' from `df_original` is not strictly necessary, but doing so leads to slightly higher quality data and faster execution time.
@@ -90,7 +90,7 @@ from syndiffix import Synthesizer
 pid_columns = ["pid_col1", "pid_col2"]
 df_pids = df_original[pid_columns]
 df_original = df_original.drop(columns=pid_columns)
-df_synthetic = Synthesizer(df_original, aids=df_pids).sample()
+df_synthetic = Synthesizer(df_original, pids=df_pids).sample()
 ```
 
 ### Other parameters

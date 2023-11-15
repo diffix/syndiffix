@@ -6,7 +6,7 @@ import numpy.typing as npt
 from .anonymizer import *
 from .common import *
 
-# If AID values are guaranteed to be unique, we don't need to track distinct values when checking
+# If PID values are guaranteed to be unique, we don't need to track distinct values when checking
 # whether entities are low-count or apply flattening when counting rows, which greatly reduces memory usage.
 # In the generic case, tracking entities requires less memory than tracking row contributions,
 # so the two counters are separated into different types.
@@ -14,7 +14,7 @@ from .common import *
 
 class IEntityCounter(ABC):
     @abstractmethod
-    def add(self, aids: Hashes) -> None:
+    def add(self, pids: Hashes) -> None:
         pass
 
     @abstractmethod
@@ -24,7 +24,7 @@ class IEntityCounter(ABC):
 
 class IRowCounter(ABC):
     @abstractmethod
-    def add(self, aids: Hashes) -> None:
+    def add(self, pids: Hashes) -> None:
         pass
 
     @abstractmethod
@@ -32,42 +32,42 @@ class IRowCounter(ABC):
         pass
 
 
-class GenericAidEntityCounter(IEntityCounter):
+class GenericPidEntityCounter(IEntityCounter):
     def __init__(self, dimensions: int, max_low_count: int) -> None:
-        self.aid_sets: list[npt.NDArray[Hash]] = [np.zeros(max_low_count, Hash) for _ in range(dimensions)]
-        self.aid_counts: list[int] = [0 for _ in range(dimensions)]
+        self.pid_sets: list[npt.NDArray[Hash]] = [np.zeros(max_low_count, Hash) for _ in range(dimensions)]
+        self.pid_counts: list[int] = [0 for _ in range(dimensions)]
         self.max_low_count = max_low_count
 
-    def add(self, aids: Hashes) -> None:
-        for dimension, aid in enumerate(aids):
-            aid_set = self.aid_sets[dimension]
-            count = self.aid_counts[dimension]
-            if count < self.max_low_count and aid != 0 and aid not in aid_set:
-                aid_set[count] = aid
-                self.aid_counts[dimension] = count + 1
+    def add(self, pids: Hashes) -> None:
+        for dimension, pid in enumerate(pids):
+            pid_set = self.pid_sets[dimension]
+            count = self.pid_counts[dimension]
+            if count < self.max_low_count and pid != 0 and pid not in pid_set:
+                pid_set[count] = pid
+                self.pid_counts[dimension] = count + 1
 
     def is_low_count(self, salt: bytes, params: SuppressionParams) -> bool:
-        aid_trackers = [
-            (count, seed_from_aid_set(aids))
-            for count, aids in zip(self.aid_counts, self.aid_sets)
+        pid_trackers = [
+            (count, seed_from_pid_set(pids))
+            for count, pids in zip(self.pid_counts, self.pid_sets)
             if count < self.max_low_count
         ]
-        if aid_trackers == []:
+        if pid_trackers == []:
             return False
-        return is_low_count(salt, params, aid_trackers)
+        return is_low_count(salt, params, pid_trackers)
 
 
-class GenericAidRowCounter(IRowCounter):
+class GenericPidRowCounter(IRowCounter):
     def __init__(self, dimensions: int) -> None:
-        self.contributions_list = [AidContributions() for _ in range(dimensions)]
+        self.contributions_list = [PidContributions() for _ in range(dimensions)]
 
-    def add(self, aids: Hashes) -> None:
-        for i, aid in enumerate(aids):
+    def add(self, pids: Hashes) -> None:
+        for i, pid in enumerate(pids):
             contributions = self.contributions_list[i]
-            if aid != 0:
-                contributions.value_counts[aid] += 1
+            if pid != 0:
+                contributions.value_counts[pid] += 1
             else:
-                # Missing AID value, add to the unaccounted rows count, so we can flatten them separately.
+                # Missing PID value, add to the unaccounted rows count, so we can flatten them separately.
                 contributions.unaccounted_for += 1
 
     def noisy_count(self, context: AnonymizationContext) -> int:
@@ -75,17 +75,17 @@ class GenericAidRowCounter(IRowCounter):
         return result.anonymized_count if result is not None else 0
 
 
-class UniqueAidCounter(IEntityCounter, IRowCounter):
+class UniquePidCounter(IEntityCounter, IRowCounter):
     def __init__(self) -> None:
         self.real_count = 0
         self.seed = Hash(0)
 
-    def add(self, aids: Hashes) -> None:
-        assert len(aids) == 1
+    def add(self, pids: Hashes) -> None:
+        assert len(pids) == 1
 
-        if aids[0] != 0:
+        if pids[0] != 0:
             self.real_count += 1
-            self.seed ^= aids[0]
+            self.seed ^= pids[0]
 
     def is_low_count(self, salt: bytes, params: SuppressionParams) -> bool:
         return is_low_count(salt, params, [(self.real_count, self.seed)])
@@ -104,21 +104,21 @@ class CountersFactory(ABC):
         pass
 
 
-class UniqueAidCountersFactory(CountersFactory):
+class UniquePidCountersFactory(CountersFactory):
     def create_row_counter(self) -> IRowCounter:
-        return UniqueAidCounter()
+        return UniquePidCounter()
 
     def create_entity_counter(self) -> IEntityCounter:
-        return UniqueAidCounter()
+        return UniquePidCounter()
 
 
-class GenericAidCountersFactory(CountersFactory):
+class GenericPidCountersFactory(CountersFactory):
     def __init__(self, dimensions: int, max_low_count: int) -> None:
         self.dimensions = dimensions
         self.max_low_count = max_low_count
 
     def create_row_counter(self) -> IRowCounter:
-        return GenericAidRowCounter(self.dimensions)
+        return GenericPidRowCounter(self.dimensions)
 
     def create_entity_counter(self) -> IEntityCounter:
-        return GenericAidEntityCounter(self.dimensions, self.max_low_count)
+        return GenericPidEntityCounter(self.dimensions, self.max_low_count)

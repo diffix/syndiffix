@@ -15,8 +15,8 @@ def _hash2(i1: int, i2: int) -> Hashes:
     return np.array([Hash(i1), Hash(i2)])
 
 
-def test_unique_aid_low_count() -> None:
-    counter = UniqueAidCountersFactory().create_entity_counter()
+def test_unique_pid_low_count() -> None:
+    counter = UniquePidCountersFactory().create_entity_counter()
     assert counter.is_low_count(SALT, NOISELESS_SUPPRESSION)
     counter.add(_hash1(1))
     counter.add(_hash1(2))
@@ -25,8 +25,8 @@ def test_unique_aid_low_count() -> None:
     assert not counter.is_low_count(SALT, NOISELESS_SUPPRESSION)
 
 
-def test_unique_aid_noisy_count() -> None:
-    counter = UniqueAidCountersFactory().create_row_counter()
+def test_unique_pid_noisy_count() -> None:
+    counter = UniquePidCountersFactory().create_row_counter()
     assert counter.noisy_count(NOISELESS_CONTEXT) == 0
     counter.add(_hash1(1))
     assert counter.noisy_count(NOISELESS_CONTEXT) == 1
@@ -34,8 +34,8 @@ def test_unique_aid_noisy_count() -> None:
     assert counter.noisy_count(NOISELESS_CONTEXT) == 2
 
 
-def test_generic_aid_low_count() -> None:
-    counter = GenericAidCountersFactory(1, MAX_LOW_COUNT).create_entity_counter()
+def test_generic_pid_low_count() -> None:
+    counter = GenericPidCountersFactory(1, MAX_LOW_COUNT).create_entity_counter()
     assert counter.is_low_count(SALT, NOISELESS_SUPPRESSION)
     counter.add(_hash1(1))
     counter.add(_hash1(2))
@@ -45,15 +45,15 @@ def test_generic_aid_low_count() -> None:
     counter.add(_hash1(2))
     counter.add(_hash1(2))
     assert counter.is_low_count(SALT, NOISELESS_SUPPRESSION)
-    # Null AID - no impact.
+    # Null PID - no impact.
     counter.add(_hash1(0))
     assert counter.is_low_count(SALT, NOISELESS_SUPPRESSION)
     counter.add(_hash1(3))
     assert not counter.is_low_count(SALT, NOISELESS_SUPPRESSION)
 
 
-def test_generic_aid_noisy_count() -> None:
-    counter = GenericAidCountersFactory(1, MAX_LOW_COUNT).create_row_counter()
+def test_generic_pid_noisy_count() -> None:
+    counter = GenericPidCountersFactory(1, MAX_LOW_COUNT).create_row_counter()
     assert counter.noisy_count(NOISELESS_CONTEXT) == 0
     counter.add(_hash1(1))
     counter.add(_hash1(2))
@@ -69,15 +69,15 @@ def test_generic_aid_noisy_count() -> None:
     counter.add(_hash1(2))
     counter.add(_hash1(3))
     assert counter.noisy_count(NOISELESS_CONTEXT) == 6
-    # Null AID - becomes flattened unaccounted for.
+    # Null PID - becomes flattened unaccounted for.
     counter.add(_hash1(0))
     counter.add(_hash1(0))
     counter.add(_hash1(0))
     assert counter.noisy_count(NOISELESS_CONTEXT) == 7
 
 
-def test_multi_aid_low_count() -> None:
-    counter = GenericAidCountersFactory(2, MAX_LOW_COUNT).create_entity_counter()
+def test_multi_pid_low_count() -> None:
+    counter = GenericPidCountersFactory(2, MAX_LOW_COUNT).create_entity_counter()
     assert counter.is_low_count(SALT, NOISELESS_SUPPRESSION)
     counter.add(_hash2(1, 1))
     counter.add(_hash2(2, 2))
@@ -88,7 +88,7 @@ def test_multi_aid_low_count() -> None:
     counter.add(_hash2(1, 1))
     counter.add(_hash2(2, 2))
     assert counter.is_low_count(SALT, NOISELESS_SUPPRESSION)
-    # Null AID - no impact.
+    # Null PID - no impact.
     counter.add(_hash2(0, 0))
     counter.add(_hash2(1, 0))
     counter.add(_hash2(0, 1))
@@ -97,9 +97,9 @@ def test_multi_aid_low_count() -> None:
     assert not counter.is_low_count(SALT, NOISELESS_SUPPRESSION)
 
 
-def test_multi_aid_noisy_count_identical() -> None:
-    # Both AIDs are identical - a simple sanity test.
-    counter = GenericAidCountersFactory(2, MAX_LOW_COUNT).create_row_counter()
+def test_multi_pid_noisy_count_identical() -> None:
+    # Both PIDs are identical - a simple sanity test.
+    counter = GenericPidCountersFactory(2, MAX_LOW_COUNT).create_row_counter()
     assert counter.noisy_count(NOISELESS_CONTEXT) == 0
     counter.add(_hash2(1, 1))
     counter.add(_hash2(2, 2))
@@ -115,25 +115,25 @@ def test_multi_aid_noisy_count_identical() -> None:
     counter.add(_hash2(2, 2))
     counter.add(_hash2(3, 3))
     assert counter.noisy_count(NOISELESS_CONTEXT) == 6
-    # Null AID - becomes flattened unaccounted for.
+    # Null PID - becomes flattened unaccounted for.
     counter.add(_hash2(0, 0))
     counter.add(_hash2(0, 5))
     counter.add(_hash2(6, 0))
     assert counter.noisy_count(NOISELESS_CONTEXT) == 7
 
 
-def test_multi_aid_noisy_count_divergent() -> None:
-    counter = GenericAidCountersFactory(2, MAX_LOW_COUNT).create_row_counter()
+def test_multi_pid_noisy_count_divergent() -> None:
+    counter = GenericPidCountersFactory(2, MAX_LOW_COUNT).create_row_counter()
     assert counter.noisy_count(NOISELESS_CONTEXT) == 0
     counter.add(_hash2(1, 1))
     counter.add(_hash2(2, 2))
     counter.add(_hash2(2, 1))
     counter.add(_hash2(1, 2))
-    # Flattening not possible in both AIDs.
+    # Flattening not possible in both PIDs.
     assert counter.noisy_count(NOISELESS_CONTEXT) == 0
     counter.add(_hash2(3, 3))
     counter.add(_hash2(3, 4))
-    # Flattening not possible in first AID.
+    # Flattening not possible in first PID.
     assert counter.noisy_count(NOISELESS_CONTEXT) == 0
     counter.add(_hash2(4, 3))
     counter.add(_hash2(4, 4))

@@ -13,8 +13,8 @@ from .clustering.strategy import ClusteringStrategy, DefaultClustering
 from .common import *
 from .counters import (
     CountersFactory,
-    GenericAidCountersFactory,
-    UniqueAidCountersFactory,
+    GenericPidCountersFactory,
+    UniquePidCountersFactory,
 )
 from .forest import Forest
 from .microdata import apply_convertors, generate_microdata, get_convertor
@@ -46,7 +46,7 @@ class Synthesizer(object):
     def __init__(
         self,
         raw_data: pd.DataFrame,
-        aids: Optional[pd.DataFrame] = None,
+        pids: Optional[pd.DataFrame] = None,
         anonymization_params: AnonymizationParams = AnonymizationParams(),
         bucketization_params: BucketizationParams = BucketizationParams(),
         clustering: ClusteringStrategy = DefaultClustering(),
@@ -54,9 +54,9 @@ class Synthesizer(object):
         if anonymization_params.salt == b"":
             anonymization_params = replace(anonymization_params, salt=_get_default_salt())
 
-        if aids is None:
-            aids = pd.DataFrame({"RowIndex": range(1, len(raw_data) + 1)})
-            counters_factory: CountersFactory = UniqueAidCountersFactory()
+        if pids is None:
+            pids = pd.DataFrame({"RowIndex": range(1, len(raw_data) + 1)})
+            counters_factory: CountersFactory = UniquePidCountersFactory()
         else:
             low_count_params = anonymization_params.low_count_params
             # Stop counting entities over 4 standard deviations more than the mean of the range threshold.
@@ -64,7 +64,7 @@ class Synthesizer(object):
             max_low_count = bucketization_params.range_low_threshold + int(
                 (low_count_params.low_mean_gap + 4.0) * low_count_params.layer_sd
             )
-            counters_factory = GenericAidCountersFactory(len(aids.columns), max_low_count)
+            counters_factory = GenericPidCountersFactory(len(pids.columns), max_low_count)
 
         self.raw_dtypes = raw_data.dtypes
 
@@ -75,7 +75,7 @@ class Synthesizer(object):
             anonymization_params,
             bucketization_params,
             counters_factory,
-            aids,
+            pids,
             apply_convertors(self.column_convertors, raw_data),
         )
 
