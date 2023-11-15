@@ -16,6 +16,8 @@ Synthetic data has two primary use cases:
 
 While **SynDiffix** serves both use cases, it is especially good at descriptive analytics. The quality of descriptive analytics is many times that of other synthetic data products.
 
+Obtaining this improvement, however, requires a different usage style compared to other products. The intended usage style of other products is "*one size fits all*": a single synthetic dataset is produced serves all use cases. By contrast, with **SynDiffix**, a different *customized* synthetic dataset should be produced for each use case.
+
 ## Install
 
 Install with `pip`:
