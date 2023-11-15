@@ -88,7 +88,7 @@ def _build_clusters(
         ]
 
         best_stitch_columns.sort(
-            key=lambda x: (math.floor(x[1] / 0.05), math.floor(x[2] / 0.01), context.total_dependence_per_column[x[0]]),
+            key=lambda x: (_floor_by(x[1], 0.05), _floor_by(x[2], 0.01), context.total_dependence_per_column[x[0]]),
             reverse=True,
         )
 
