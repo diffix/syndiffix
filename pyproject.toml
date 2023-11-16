@@ -23,6 +23,7 @@ readme = "README.md"
 license = "MIT"
 homepage = "https://open-diffix.org/"
 repository = "https://github.com/diffix/syndiffix"
+include = ["CHANGELOG.md", "docs/*", "example_simple.py"]
 
 
 [tool.poetry.dependencies]
