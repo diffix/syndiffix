@@ -8,7 +8,7 @@ import numpy.typing as npt
 from pandas import DataFrame
 from pandas.api.types import is_float_dtype, is_integer_dtype, is_string_dtype
 
-from .anonymizer import hash_aid, noisy_row_limit
+from .anonymizer import hash_pid, noisy_row_limit
 from .common import *
 from .interval import Interval, snap_interval
 from .microdata import get_null_mapping
@@ -30,20 +30,20 @@ class Forest:
         anonymization_params: AnonymizationParams,
         bucketization_params: BucketizationParams,
         counters_factory: CountersFactory,
-        aids: DataFrame,
+        pids: DataFrame,
         data: DataFrame,
     ) -> None:
         self.anonymization_params = anonymization_params
         self.bucketization_params = bucketization_params
         self.counters_factory = counters_factory
-        self.orig_aids = aids
+        self.orig_pids = pids
         self.orig_data = data
         self.unsafe_rng = random.Random(0)
 
-        assert len(aids) == len(data)
+        assert len(pids) == len(data)
         assert len(data) > 0
-        assert len(aids.columns) >= 1
-        for dtype in aids.dtypes:
+        assert len(pids.columns) >= 1
+        for dtype in pids.dtypes:
             assert is_string_dtype(dtype) or is_integer_dtype(dtype)
         # We assume `microdata.apply_convertors` has been called on the data.
         for dtype in data.dtypes:
@@ -58,9 +58,9 @@ class Forest:
             interval.expand(null_mapping)
         self.snapped_intervals = tuple(snap_interval(interval) for interval in actual_intervals)
 
-        # Hash and store AID values.
-        aids = cast(DataFrame, aids.map(hash_aid))  # type: ignore
-        self.aid_data: npt.NDArray[np.uint64] = aids.to_numpy(Hash)
+        # Hash and store PID values.
+        pids = cast(DataFrame, pids.map(hash_pid))  # type: ignore
+        self.pid_data: npt.NDArray[np.uint64] = pids.to_numpy(Hash)
 
         # Arrange data in a numpy array, applying the null mappings to missing values.
         # `DataFrame.fillna` doesn't seem to accept the fill values by index, must build dict.
@@ -107,7 +107,7 @@ class Forest:
 
         context = Context(
             combination,
-            self.aid_data,
+            self.pid_data,
             self.data,
             anonymization_context,
             self.bucketization_params,

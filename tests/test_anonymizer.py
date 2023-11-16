@@ -24,21 +24,21 @@ def test_hash_strings() -> None:
     assert hash_strings(iter(["a", "b", "a"])) == hash_strings(iter(["b", "a"]))
 
 
-def test_hash_aid() -> None:
-    assert hash_aid(0) == Hash(0)
-    assert hash_aid(None) == Hash(0)
-    assert hash_aid("") == Hash(0)
+def test_hash_pid() -> None:
+    assert hash_pid(0) == Hash(0)
+    assert hash_pid(None) == Hash(0)
+    assert hash_pid("") == Hash(0)
 
 
 def test_multiple_contributions() -> None:
-    def count(contributions_list: list[AidContributions]) -> CountResult | None:
+    def count(contributions_list: list[PidContributions]) -> CountResult | None:
         return count_multiple_contributions(NOISELESS_CONTEXT, contributions_list)
 
-    def contributions(counts: list[int], unaccounted_for: int) -> AidContributions:
+    def contributions(counts: list[int], unaccounted_for: int) -> PidContributions:
         counter: Counter[Hash] = Counter()
         for index, count in enumerate(counts):
             counter[Hash(index)] = count
-        return AidContributions(counter, unaccounted_for)
+        return PidContributions(counter, unaccounted_for)
 
     # insufficient data
     assert count([contributions([], 7)]) is None
@@ -54,7 +54,7 @@ def test_multiple_contributions() -> None:
     # flattening of unaccounted_for
     assert count([contributions([1] * 10 + [10], 10)]) == CountResult(12, 0.0)
 
-    # multiple AIDs
+    # multiple PIDs
     assert count([contributions([1] * 10, 0), contributions([1], 0)]) is None
     assert count([contributions([1] * 10, 0), contributions([1] * 20, 0)]) == CountResult(20, 0.0)
     assert count([contributions([1] * 20 + [10], 0), contributions([1] * 10 + [20], 0)]) == CountResult(11, 0.0)

@@ -18,7 +18,7 @@ RowId = NewType("RowId", int)
 @dataclass(frozen=True)
 class Context:
     combination: Combination
-    aid_data: npt.NDArray[Hash]
+    pid_data: npt.NDArray[Hash]
     data: npt.NDArray[np.float64]
     anonymization_context: AnonymizationContext
     bucketization_params: BucketizationParams
@@ -47,8 +47,8 @@ class Node(ABC):
     def dimensions(self) -> int:
         return len(self.context.combination)
 
-    def update_aids(self, row: RowId) -> None:
-        self.entity_counter.add(self.context.aid_data[row])
+    def update_pids(self, row: RowId) -> None:
+        self.entity_counter.add(self.context.pid_data[row])
 
         # We need to recompute cached values each time new contributions arrive.
         self._stub_subnode_cache = None
@@ -115,7 +115,7 @@ class Node(ABC):
 
             row_counter = self.context.counters_factory.create_row_counter()
             for row in self._matching_rows():
-                row_counter.add(self.context.aid_data[row])
+                row_counter.add(self.context.pid_data[row])
 
             min_count = anon_context.anonymization_params.low_count_params.low_threshold
             self._noisy_count_cache = max(row_counter.noisy_count(anon_context), min_count)
@@ -135,7 +135,7 @@ class Leaf(Node):
         super().__init__(context, subnodes, snapped_intervals, actual_intervals)
         self.rows = [initial_row]
 
-        self.update_aids(initial_row)
+        self.update_pids(initial_row)
         self.update_actual_intervals(initial_row)
 
     def _should_split(self, depth: int) -> bool:
@@ -151,7 +151,7 @@ class Leaf(Node):
         )
 
     def add_row(self, depth: int, row: RowId) -> Node:
-        self.update_aids(row)
+        self.update_pids(row)
         self.update_actual_intervals(row)
         self.rows.append(row)
 
@@ -165,7 +165,7 @@ class Leaf(Node):
             return self
 
     def _add_1dim_outlier_row(self, row: RowId) -> None:
-        self.update_aids(row)
+        self.update_pids(row)
         self.rows.append(row)
 
     def push_down_1dim_root(self) -> Node:
@@ -221,12 +221,12 @@ class Branch(Node):
         self.children[child_index] = (
             self._create_child_leaf(child_index, row) if child is None else child.add_row(depth + 1, row)
         )
-        self.update_aids(row)
+        self.update_pids(row)
         self.update_actual_intervals(row)
         return self
 
     def _add_1dim_outlier_row(self, row: RowId) -> None:
-        self.update_aids(row)
+        self.update_pids(row)
         child_index = next(iter(self.children)) if len(self.children) == 1 else self._find_child_index(row)
         self.children[child_index]._add_1dim_outlier_row(row)
 

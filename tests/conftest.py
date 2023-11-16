@@ -3,7 +3,7 @@ import os
 from typing import Any
 
 from syndiffix.common import *
-from syndiffix.counters import UniqueAidCountersFactory
+from syndiffix.counters import UniquePidCountersFactory
 from syndiffix.forest import *
 from syndiffix.microdata import apply_convertors, get_convertor
 
@@ -22,14 +22,14 @@ NOISELESS_CONTEXT = AnonymizationContext(bucket_seed=np.uint64(123), anonymizati
 
 def create_forest(
     data_df: DataFrame,
-    aid_df: DataFrame | None = None,
+    pid_df: DataFrame | None = None,
     anon_params: AnonymizationParams | None = None,
     bucketization_params: BucketizationParams | None = None,
 ) -> Forest:
-    aid_df = DataFrame(range(1, len(data_df) + 1)) if aid_df is None else aid_df
+    pid_df = DataFrame(range(1, len(data_df) + 1)) if pid_df is None else pid_df
     anon_params = anon_params if anon_params is not None else AnonymizationParams()
     bucketization_params = bucketization_params if bucketization_params else BucketizationParams()
-    return Forest(anon_params, bucketization_params, UniqueAidCountersFactory(), aid_df, data_df)
+    return Forest(anon_params, bucketization_params, UniquePidCountersFactory(), pid_df, data_df)
 
 
 def _test_file_dir(filename: str) -> str:

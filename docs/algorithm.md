@@ -281,10 +281,10 @@ We optionally patch the non-feature columns to get a complete table.
 Noise is added to entity and row counts using an RNG seeded deterministically from the bucket's contents.
 This ensures identical output for the same data in different runs.
 
-Entity threshold checks use a single noise layer that is seeded with the hash value of the AIDs included in the
+Entity threshold checks use a single noise layer that is seeded with the hash value of the PIDs included in the
 respective bucket.
 
-Row counts have two noise layers: one seeded with the hash value of the AIDs present in the bucket and one seeded
+Row counts have two noise layers: one seeded with the hash value of the PIDs present in the bucket and one seeded
 with the hash of the bucket's labels and columns (the column names in each tree make up the base seed of the tree and,
 for each bucket, the labels are made up from the middle-points of the bucket's ranges).
 Then, the regular [Diffix count anonymizer](https://arxiv.org/abs/2201.04351) runs.

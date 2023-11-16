@@ -32,13 +32,13 @@ def sample_forest(forest: Forest, sample_size: int) -> Forest:
 
     random_indices = rng.sample(range(len(forest.orig_data)), sample_size)
 
-    sampled_aids = forest.orig_aids.iloc[random_indices]
+    sampled_pids = forest.orig_pids.iloc[random_indices]
     sampled_data = forest.orig_data.iloc[random_indices]
 
     return Forest(
         sampling_anon_params,
         forest.bucketization_params,
         forest.counters_factory,
-        sampled_aids,
+        sampled_pids,
         sampled_data,
     )
