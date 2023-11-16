@@ -1,16 +1,30 @@
-# Overview
+## Overview
 
-**SynDiffix** is a new approach to generating statistically-accurate and strongly anonymous synthetic data from structured
-data. Compared to existing open-source and proprietary commercial approaches, SynDiffix is
+**SynDiffix** is an open-source tool for generating statistically-accurate and strongly anonymous synthetic data from structured data. Compared to existing open-source and proprietary commercial approaches, SynDiffix is
 
 - many times more accurate,
 - has comparable or better ML efficacy,
-- runs at least an order of magnitude faster, and
-- has equal or stronger anonymization.
+- runs as fast or faster,
+- has stronger anonymization.
 
 ## Purpose
 
-This library implements the SynDiffix method for tabular data synthesis in pure Python.
+Synthetic data has two primary use cases:
+
+1. Descriptive analytics (histograms, heatmaps, column correlations, basic statistics like counting, averages, standard deviations, and so on)
+2. Machine learning (building models)
+
+While **SynDiffix** serves both use cases, it is especially good at descriptive analytics. The quality of descriptive analytics is many times that of other synthetic data products.
+
+Obtaining this improvement, however, requires a different usage style compared to other products. The intended usage style of other products is "*one size fits all*": a single synthetic dataset serves all use cases. By contrast, with **SynDiffix**, a different *tailored* synthetic dataset should be produced for each use case.
+
+## Install
+
+Install with `pip`:
+
+`pip install syndiffix`
+
+Requires python 3.10 or later.
 
 ## Usage
 
@@ -19,100 +33,69 @@ Usage can be as simple as:
 ```py
 from syndiffix import Synthesizer
 
-raw_data = load_dataframe()
-syn_data = Synthesizer(raw_data).sample()
+df_synthetic = Synthesizer(df_original).sample()
 ```
 
-This will create a new Pandas DataFrame containing synthetic data, with the same number of columns and the same
-number of rows as in the input data.
-Default settings will be used and each row in the original data has to belong to a different protected entity.
+This will create a new Pandas dataframe containing synthetic data, with the same number of columns and the similar number of rows as in the input dataframe.
 
-The script [example_simple.py](example_simple.py) shows a simple example on how to process all data in a CSV file
-that holds a different protected entity in each row.
+The script [example_simple.py](example_simple.py) gives a simple CSV-in-CSV-out example for generating synthetic data.
 
-### Processing data with multiple rows per-entity
+### Maximizing data accuracy
 
-If the same entity can have multiple rows belonging to it, then a dataframe with the AID values has to be passed separately:
+Data accuracy is maximized by synthesizing only the columns required for the analytic task. For instance, if the goal is to understand the correlation between two columns `col1` and `col2`, then only those columns should be synthesized:
 
 ```py
 from syndiffix import Synthesizer
 
-raw_data = load_dataframe()
-aid_columns = ["aid1", "aid2"]
-aids = raw_data[aid_columns]
-raw_data = raw_data.drop(columns=aid_columns)
-syn_data = Synthesizer(raw_data, aids=aids).sample()
+df_synthetic = Synthesizer(df_original[['col1','col2']]).sample()
 ```
 
-The AID columns should not be a part of the input data to the synthesizer.
+Note that anonymity is preserved regardless of how many different synthetic dataframes are generated from any given column.
 
-### Changing anonymization parameters
+### Maximizing ML efficacy relative to a given target column
 
-Anonymization parameters determine how much raw data is suppressed and distorted before synthesis.
-To modify default parameters, pass a custom instance of the `AnonymizationParams` class
-to the `Synthesizer` object. For example:
+When the use case is producing an ML model for a given target column 'your_target_col', the target column is specified as:
 
 ```py
-Synthesizer(raw_data, anonymization_params=AnonymizationParams(layer_noise_sd=1.5))
+from syndiffix import Synthesizer
+
+df_synthetic = Synthesizer(df_original, clustering=MLClustering(target_column='your_target_col'))
 ```
 
-The following parameters are available:
+Note that the quality of the predictive model for the target column will be much better than when not specifying the target column. If a model is needed for a different target column, then a separate synthetic dataframe should be created.
 
-- `salt`: noise salt for the data source; if empty, an automatically generated value is used.
+### Managing protected entities
 
-- `low_count_params`: parameters for the low-count filter.
+A *protected entity* is the thing in the dataframe whose anonymity is being protected. Normally this is a person, but could be a device used by a person or really anything else.
 
-- `outlier_count`: outlier count interval used during flattening.
+If there are multiple rows per protected entity (e.g. event or time-series data), then there must be a column that identifies the protected entity, and this column must be conveyed in its own dataframe. Failing to do so compromises anonymity.
 
-- `top_count`: top count interval used during flattening.
-
-- `layer_noise_sd`: stddev of each noise layer added to row counts.
-
-### Changing bucketization parameters
-
-Bucketization parameters determine how raw data is aggregated before synthesis.
-To modify default parameters, pass a custom instance of the `BucketizationParams` class
-to the `Synthesizer` object. For example:
+If the column identifying the protected entity is 'pid_col', then it is specified as:
 
 ```py
-Synthesizer(raw_data, bucketization_params=BucketizationParams(precision_limit_depth_threshold=10))
+from syndiffix import Synthesizer
+
+df_pid = df_original[["pid_col"]]
+df_original = df_original.drop(columns=["pid_col"])
+df_synthetic = Synthesizer(df_original, aids=df_pid).sample()
 ```
 
-The following parameters are available:
+Note that dropping 'pid_col' from `df_original` is not strictly necessary, but doing so leads to slightly higher quality data and faster execution time.
 
-- `singularity_low_threshold`: low threshold for a singularity bucket.
-
-- `range_low_threshold`: low threshold for a range bucket.
-
-- `precision_limit_row_fraction`: the fraction of rows needed for splitting nodes when the tree depth goes
-  beyond the depth threshold; this condition is applied in addition to the low-count filter.
-
-- `precision_limit_depth_threshold`: tree depth threshold below which nodes are split only if they pass the
-  low-count filter; when above the threshold, the row fraction condition is also applied.
-
-### Changing clustering strategy
-
-Clustering strategy determines how columns are grouped together in the forest of trees used for
-anonymization and aggregation. Anonymized buckets are harvested from those trees, synthetic
-microdata tables are generated, and are then stitched together into a single output table.
-To change the clustering strategy, pass an instance of a sub-class of the `ClusteringStrategy` class
-to the `Synthesizer` object. For example:
+A dataframe can have multiple protected entities. Examples include sender and receiver in a banking transaction, or patient and doctor in a medical database. If the columns identifying two protected entities are 'pid_col1' and 'pid_col2', then they are specified as:
 
 ```py
-Synthesizer(raw_data, clustering=NoClustering())
+from syndiffix import Synthesizer
+
+pid_columns = ["pid_col1", "pid_col2"]
+df_pids = df_original[pid_columns]
+df_original = df_original.drop(columns=pid_columns)
+df_synthetic = Synthesizer(df_original, aids=df_pids).sample()
 ```
 
-The following strategies are available:
+### Other parameters
 
-- `NoClustering`: - strategy that disables clustering; puts all columns in a single cluster; note that this will
-  result in very poor performance for the general case.
-
-- `DefaultClustering`: - general-purpose clustering strategy; columns are grouped together in order to maximize the
-  chi-square dependence measurement values of the generated clusters; a main column that gets put into every cluster
-  can be specified, in order to improve output quality for that specific column.
-
-- `MLClustering`: - strategy for ML tasks; main feature columns for a target column are automatically detected and
-  grouped together with the target column in the order of their ML prediction-test scores.
+There are a wide variety of parameters that control the operation of **SynDiffix**. They are documented [here](docs/parameters.md).
 
 ## Development
 
@@ -120,7 +103,7 @@ Prerequisites: [poetry](https://python-poetry.org/docs/#installing-with-the-offi
 
 - Installation: `poetry install`
 
-Activate `poetry` environment: `poetry shell`. (can skip, then prepend `poetry run` to the next commands)
+Activate `poetry` environment: `poetry shell`. (can skip, then prepend `poetry run` to the following commands)
 
 - Format: `black . && isort .`
 - Test: `pytest .`
