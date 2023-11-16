@@ -296,12 +296,16 @@ def _do_stitch(
     if len(left_combination) == 0 or len(stitch_columns) == 0 or len(derived_columns) == 0:
         raise ValueError("Invalid clusters in stitch operation.")
 
-    if len(right_rows) == 0:
-        raise ValueError(f"Empty sequence in cluster {right_combination}.")
-
     # Pick lowest entropy column first.
     stitch_columns = sorted(stitch_columns, key=lambda col: (metadata.entropy_1dim[col], col))
     all_columns = _locate_columns(left_combination, right_combination)
+
+    if len(left_rows) == 0 and len(right_rows) == 0:
+        return [], tuple(c.column_id for c in all_columns)
+
+    if len(right_rows) == 0:
+        raise ValueError(f"Empty sequence in cluster {right_combination}.")
+
     result_rows: list[MicrodataRow] = []
 
     root_stitch_intervals = [forest.snapped_intervals[col] for col in stitch_columns]

@@ -12,6 +12,13 @@ def _build_rows(*cols: list[int]) -> list[MicrodataRow]:
     return [list(row) for row in zip(*microdata_cols)]
 
 
+def _dummy_metadata(ncols: int) -> StitchingMetadata:
+    return StitchingMetadata(
+        dimension_is_integral=[True for _ in range(ncols)],
+        entropy_1dim=np.array([1.0 for _ in range(ncols)]),
+    )
+
+
 def test_stitching() -> None:
     forest = load_forest("dummy.csv")
 
@@ -21,11 +28,6 @@ def test_stitching() -> None:
     col_c_left = [300, 301, 302, 303, 304, 305, 306, 307, 308, 309]
     col_c_right = [310, 311, 312, 313, 314, 315, 316, 317, 318, 319]
     col_d = [400, 401, 402, 403, 404, 405, 406, 407, 408, 409]
-
-    metadata = StitchingMetadata(
-        dimension_is_integral=[True, True, True, True],
-        entropy_1dim=np.array([1.0, 1.0, 1.0, 1.0]),
-    )
 
     microtables: dict[Combination, list[MicrodataRow]] = {
         (ColumnId(0), ColumnId(1)): _build_rows(col_a_left, col_b),
@@ -45,7 +47,7 @@ def test_stitching() -> None:
         ],
     )
 
-    rows, combination = build_table(materialize_tree, forest, metadata, clusters)
+    rows, combination = build_table(materialize_tree, forest, _dummy_metadata(4), clusters)
 
     assert combination == (0, 1, 2, 3)
     assert rows == [
@@ -62,6 +64,26 @@ def test_stitching() -> None:
     ]
 
 
+def test_empty_microtables() -> None:
+    forest = load_forest("dummy.csv")
+
+    def materialize_tree(_forest: Forest, columns: list[ColumnId]) -> tuple[list[MicrodataRow], Combination]:
+        combination = tuple(sorted(columns))
+        return ([], combination)
+
+    clusters = Clusters(
+        initial_cluster=[ColumnId(0), ColumnId(1)],
+        derived_clusters=[
+            (StitchOwner.SHARED, [ColumnId(0)], [ColumnId(2)]),
+        ],
+    )
+
+    rows, combination = build_table(materialize_tree, forest, _dummy_metadata(3), clusters)
+
+    assert combination == (0, 1, 2)
+    assert rows == []
+
+
 def test_patching() -> None:
     forest = load_forest("dummy.csv")
 
@@ -69,11 +91,6 @@ def test_patching() -> None:
     col_b = [200, 201, 202, 203, 204, 205, 206, 207, 208, 209]
     col_c = [300, 301, 302, 303, 304, 305, 306, 307, 308, 309, 310, 311]
     col_d = [400, 401, 402, 403, 404]
-
-    metadata = StitchingMetadata(
-        dimension_is_integral=[True, True, True, True],
-        entropy_1dim=np.array([1.0, 1.0, 1.0, 1.0]),
-    )
 
     microtables: dict[Combination, list[MicrodataRow]] = {
         (ColumnId(0), ColumnId(1)): _build_rows(col_a, col_b),
@@ -93,7 +110,7 @@ def test_patching() -> None:
         ],
     )
 
-    rows, combination = build_table(materialize_tree, forest, metadata, clusters)
+    rows, combination = build_table(materialize_tree, forest, _dummy_metadata(4), clusters)
 
     assert combination == (0, 1, 2, 3)
     assert rows == [
