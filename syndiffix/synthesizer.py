@@ -9,7 +9,7 @@ from appdirs import user_config_dir
 from .bucket import harvest
 from .clustering.common import MicrodataRow
 from .clustering.stitching import StitchingMetadata, build_table
-from .clustering.strategy import ClusteringStrategy, DefaultClustering
+from .clustering.strategy import ClusteringStrategy, DefaultClustering, MlClustering
 from .common import *
 from .counters import (
     CountersFactory,
@@ -49,8 +49,12 @@ class Synthesizer(object):
         pids: Optional[pd.DataFrame] = None,
         anonymization_params: AnonymizationParams = AnonymizationParams(),
         bucketization_params: BucketizationParams = BucketizationParams(),
-        clustering: ClusteringStrategy = DefaultClustering(),
+        target_column: Optional[ColumnId | str] = None,
+        clustering: Optional[ClusteringStrategy] = None,
     ) -> None:
+        if target_column is not None and clustering:
+            raise ValueError("Cannot specify both target_column and clustering parameters.")
+
         if anonymization_params.salt == b"":
             anonymization_params = replace(anonymization_params, salt=_get_default_salt())
 
@@ -78,6 +82,12 @@ class Synthesizer(object):
             pids,
             apply_convertors(self.column_convertors, raw_data),
         )
+
+        if not clustering:
+            if target_column is not None:
+                clustering = MlClustering(target_column=target_column)
+            else:
+                clustering = DefaultClustering()
 
         self.clusters, self.entropy_1dim = clustering.build_clusters(self.forest)
 

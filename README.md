@@ -59,7 +59,7 @@ When the use case is producing an ML model for a given target column 'your_targe
 ```py
 from syndiffix import Synthesizer
 
-df_synthetic = Synthesizer(df_original, clustering=MLClustering(target_column='your_target_col'))
+df_synthetic = Synthesizer(df_original, target_column='your_target_col')
 ```
 
 Note that the quality of the predictive model for the target column will be much better than when not specifying the target column. If a model is needed for a different target column, then a separate synthetic dataframe should be created.
