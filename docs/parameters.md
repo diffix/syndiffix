@@ -60,12 +60,15 @@ Synthesizer(df_original, clustering=NoClustering())
 
 The following strategies are available:
 
-- `NoClustering`: - strategy that disables clustering; puts all columns in a single cluster; note that this will
-  result in very poor performance for the general case.
-
 - `DefaultClustering`: - general-purpose clustering strategy; columns are grouped together in order to maximize the
   chi-square dependence measurement values of the generated clusters; a main column that gets put into every cluster
   can be specified, in order to improve output quality for that specific column.
 
 - `MLClustering`: - strategy for ML tasks; main feature columns for a target column are automatically detected and
   grouped together with the target column in the order of their ML prediction-test scores.
+
+- `NoClustering`: - disables clustering and instead synthesizes each column independently; the microdata of
+  these columns is shuffled randomly and combined into an output table.
+
+- `SingleClustering`: - strategy that puts all columns in a single cluster; note that this will
+  result in very poor performance when the number of columns is large.
