@@ -52,8 +52,12 @@ class Synthesizer(object):
         target_column: Optional[ColumnId | str] = None,
         clustering: Optional[ClusteringStrategy] = None,
     ) -> None:
-        if target_column is not None and clustering:
-            raise ValueError("Cannot specify both target_column and clustering parameters.")
+        if target_column is not None:
+            if clustering:
+                raise ValueError("Cannot specify both target_column and clustering parameters.")
+            clustering = MlClustering(target_column=target_column)
+        elif not clustering:
+            clustering = DefaultClustering()
 
         if anonymization_params.salt == b"":
             anonymization_params = replace(anonymization_params, salt=_get_default_salt())
@@ -82,12 +86,6 @@ class Synthesizer(object):
             pids,
             apply_convertors(self.column_convertors, raw_data),
         )
-
-        if not clustering:
-            if target_column is not None:
-                clustering = MlClustering(target_column=target_column)
-            else:
-                clustering = DefaultClustering()
 
         self.clusters, self.entropy_1dim = clustering.build_clusters(self.forest)
 
