@@ -1,5 +1,6 @@
 import os
 import secrets
+import sys
 from dataclasses import replace
 from typing import Optional
 
@@ -24,15 +25,24 @@ def _get_default_salt() -> bytes:
     config_dir = user_config_dir("SynDiffix", "OpenDiffix")
     salt_file_path = os.path.join(config_dir, "salt.bin")
 
-    if not os.path.isfile(salt_file_path):
-        salt = secrets.randbits(64).to_bytes(8, "little")
+    try:
+        if not os.path.isfile(salt_file_path):
+            salt = secrets.randbits(64).to_bytes(8, "little")
 
-        os.makedirs(config_dir, exist_ok=True)
-        with open(salt_file_path, "wb") as file:
-            file.write(salt)
+            os.makedirs(config_dir, exist_ok=True)
+            with open(salt_file_path, "wb") as file:
+                file.write(salt)
 
-    with open(salt_file_path, "rb") as file:
-        return file.read()
+        with open(salt_file_path, "rb") as file:
+            return file.read()
+    except Exception as e:
+        print(
+            "Error: could not create or retrieve the default salt value!\n"
+            + f"Make sure you have the required rights to access the file `{salt_file_path}` "
+            + "or provide a custom salt value.",
+            file=sys.stderr,
+        )
+        raise e
 
 
 class Synthesizer(object):

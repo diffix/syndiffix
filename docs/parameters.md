@@ -1,6 +1,6 @@
 ## Parameters
 
-This document specifies a variety of parameters that control the operation of **SynDiffix**. 
+This document specifies a variety of parameters that control the operation of **SynDiffix**.
 
 ### Changing anonymization parameters
 
@@ -14,7 +14,8 @@ Synthesizer(df_original, anonymization_params=AnonymizationParams(layer_noise_sd
 
 The following parameters are available:
 
-- `salt`: noise salt for the data source; if empty, an automatically generated value is used.
+- `salt`: secret salt for the added noise; if empty, a default value is generated automatically and
+  saved into the current user's config folder for future uses.
 
 - `low_count_params`: parameters for the low-count filter.
 
