@@ -97,3 +97,40 @@ def test_string_ranges() -> None:
     for value in syn_data[0]:
         syn_prefixes.add(value[: value.find("*")])
     assert syn_prefixes.issuperset(["Leopoldstraße ", "Potsdamer Straße ", "Spandauer Str. 4", "Gerichtstraße "])
+
+
+def test_result_consistency() -> None:
+    raw_data = pd.DataFrame(
+        [
+            [1, 0],
+            [1, 6],
+            [1, 12],
+            [1, 7],
+            [1, 21],
+            [1, 12],
+            [1, 17],
+            [1, 31],
+            [0, 5],
+            [0, 2],
+            [0, 7],
+            [0, 19],
+            [0, 24],
+            [0, 16],
+            [0, 8],
+            [0, 2],
+            [2, 1],
+            [2, 3],
+            [2, 4],
+            [2, 3],
+            [2, 0],
+            [2, 1],
+            [2, 5],
+            [2, 2],
+            [2, 0],
+            [2, 0],
+        ]
+    )
+    syn_data_1 = Synthesizer(raw_data).sample()
+    syn_data_2 = Synthesizer(raw_data).sample()
+
+    pd.testing.assert_frame_equal(syn_data_1, syn_data_2)
