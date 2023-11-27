@@ -8,14 +8,14 @@ def test_harvest_singularity() -> None:
     forest = create_forest(DataFrame({"data": [1.0] * 12}), anon_params=NOISELESS_PARAMS)
     tree = forest.get_tree((ColumnId(0),))
 
-    assert harvest(tree) == [Bucket((Interval(1.0, 1.0),), 12)]
+    assert harvest(tree, Random(0)) == [Bucket((Interval(1.0, 1.0),), 12)]
 
 
 def test_harvest_range() -> None:
     forest = create_forest(DataFrame({"data": [float(i) for i in range(12)]}), anon_params=NOISELESS_PARAMS)
     tree = forest.get_tree((ColumnId(0),))
 
-    assert harvest(tree) == [
+    assert harvest(tree, Random(0)) == [
         Bucket((Interval(0.0, 4.0),), 4),
         Bucket((Interval(4.0, 8.0),), 4),
         Bucket((Interval(8.0, 12.0),), 4),
@@ -28,7 +28,7 @@ def test_refining() -> None:
         anon_params=NOISELESS_PARAMS,
     )
     tree = forest.get_tree((ColumnId(0), ColumnId(1)))
-    intervals = [bucket.intervals for bucket in harvest(tree) for _ in range(bucket.count)]
+    intervals = [bucket.intervals for bucket in harvest(tree, Random(0)) for _ in range(bucket.count)]
 
     for i in range(12):
         x = float(i)
