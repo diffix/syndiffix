@@ -103,7 +103,7 @@ class Synthesizer(object):
         def materialize_tree(forest: Forest, columns: list[ColumnId]) -> tuple[list[MicrodataRow], Combination]:
             combination = tuple(sorted(columns))
             tree = forest.get_tree(combination)
-            buckets = harvest(tree)
+            buckets = harvest(tree, self.forest.derive_unsafe_rng())
             return (
                 generate_microdata(
                     buckets,

@@ -240,11 +240,10 @@ def _harvest_node(node: Node, harvested_nodes: BucketsCache, unsafe_rng: Random)
     return harvested_nodes[node]
 
 
-def harvest(node: Node) -> Buckets:
+# The passed RNG isn't safe for anonymization, so it can only be applied to already anonymized data.
+# Used for randomly matching subintervals during refining.
+def harvest(node: Node, unsafe_rng: Random = Random(0)) -> Buckets:
     # Maps node.NodeData.Id to its already harvested buckets, so it's done only once.
     harvested_nodes: BucketsCache = dict()
-    # This RNG isn't safe for anonymization, so it can only be applied to already anonymized data.
-    # Used for randomly matching subintervals during refining.
-    unsafe_rng = Random(0)
     buckets = _harvest_node(node, harvested_nodes, unsafe_rng)
     return [bucket for bucket in buckets if bucket.count > 0]
