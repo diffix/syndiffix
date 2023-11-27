@@ -217,9 +217,13 @@ def solve(context: ClusteringContext, max_weight: float, merge_thresh: float, al
 
 
 def solve_with_features(
-    main_column: ColumnId, main_features: list[ColumnId], max_weight: float, forest: Forest, entropy_1dim: Entropy1Dim
+    main_column: ColumnId,
+    main_features: list[ColumnId],
+    max_weight: float,
+    entropy_1dim: Entropy1Dim,
+    drop_non_features: bool,
 ) -> Clusters:
-    num_columns = forest.dimensions
+    num_columns = len(entropy_1dim)
     main_column_weight = _col_weight(entropy_1dim[main_column])
 
     clusters: list[MutableCluster] = []
@@ -245,8 +249,10 @@ def solve_with_features(
     derived_clusters = [(StitchOwner.SHARED, [main_column], list(cluster.columns)) for cluster in clusters[1:]]
 
     ml_columns = [main_column] + main_features
-    patch_columns: list[DerivedCluster] = [
-        (StitchOwner.SHARED, [], [ColumnId(c)]) for c in range(num_columns) if c not in ml_columns
-    ]
+    patch_columns: list[DerivedCluster] = (
+        []
+        if drop_non_features
+        else [(StitchOwner.SHARED, [], [ColumnId(c)]) for c in range(num_columns) if c not in ml_columns]
+    )
 
     return Clusters(initial_cluster=initial_cluster, derived_clusters=derived_clusters + patch_columns)
