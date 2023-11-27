@@ -35,7 +35,7 @@ def _adjust_counts(buckets: Buckets, current_count: int, target_count: int) -> N
         bucket.count = int(adjusted_count)
 
 
-def _get_subbuckets(node: Node, harvested_nodes: BucketsCache) -> list[Buckets]:
+def _get_subbuckets(node: Node, harvested_nodes: BucketsCache, unsafe_rng: Random) -> list[Buckets]:
     subnodes_combinations = generate_combinations(node.dimensions() - 1, node.dimensions())
     subnodes_buckets: list[Buckets] = []
 
@@ -46,7 +46,7 @@ def _get_subbuckets(node: Node, harvested_nodes: BucketsCache) -> list[Buckets]:
         elif subnode is None:
             subnode_buckets = []
         else:
-            subnode_buckets = _harvest_node(subnode, harvested_nodes)
+            subnode_buckets = _harvest_node(subnode, harvested_nodes, unsafe_rng)
 
         subnodes_buckets.append(subnode_buckets)
 
@@ -155,13 +155,11 @@ def _get_per_subnode_intervals_lists(smallest_intervals: Intervals, subbuckets: 
     return per_subnode_intervals_lists
 
 
-# This source of randomness isn't sticky, so can only be applied to already anonymized data.
-# Used for randomly matching subintervals during refining.
-_non_sticky_rng = Random(0)
-
-
 def _match_subintervals(
-    count: int, per_dimension_interval_lists: list[list[Interval]], per_subnode_intervals_lists: list[list[Intervals]]
+    count: int,
+    per_dimension_interval_lists: list[list[Interval]],
+    per_subnode_intervals_lists: list[list[Intervals]],
+    unsafe_rng: Random,
 ) -> Iterable[Intervals]:
     assert len(per_dimension_interval_lists) == len(per_subnode_intervals_lists)
     dimensions = len(per_dimension_interval_lists)
@@ -175,14 +173,14 @@ def _match_subintervals(
         dimension_interval_list = per_dimension_interval_lists[dimension_index]
 
         # Create a random match between the selected sub-intervals in order to avoid biases in the output.
-        subnode_intervals = subnode_intervals_list[_non_sticky_rng.randint(0, len(subnode_intervals_list) - 1)]
-        dimension_interval = dimension_interval_list[_non_sticky_rng.randint(0, len(dimension_interval_list) - 1)]
+        subnode_intervals = subnode_intervals_list[unsafe_rng.randint(0, len(subnode_intervals_list) - 1)]
+        dimension_interval = dimension_interval_list[unsafe_rng.randint(0, len(dimension_interval_list) - 1)]
 
         yield (*subnode_intervals[:dimension_index], dimension_interval, *subnode_intervals[dimension_index:])
 
 
-def _refine_buckets(node: Node, harvested_nodes: BucketsCache, count: int) -> Buckets:
-    subbuckets = _get_subbuckets(node, harvested_nodes)
+def _refine_buckets(node: Node, harvested_nodes: BucketsCache, count: int, unsafe_rng: Random) -> Buckets:
+    subbuckets = _get_subbuckets(node, harvested_nodes, unsafe_rng)
 
     if not all(subbuckets):
         return [Bucket(tuple(node.bucket_intervals()), count)]
@@ -196,24 +194,28 @@ def _refine_buckets(node: Node, harvested_nodes: BucketsCache, count: int) -> Bu
         # Can't match if there are no intervals for some subnodes or no interval for some dimensions.
         return [Bucket(tuple(node.bucket_intervals()), count)]
 
-    matched_intervals = _match_subintervals(count, per_dimension_interval_lists, per_subnode_intervals_lists)
+    matched_intervals = _match_subintervals(
+        count, per_dimension_interval_lists, per_subnode_intervals_lists, unsafe_rng
+    )
     return [Bucket(interval, 1) for interval in matched_intervals]
 
 
-def _harvest_leaf(leaf: Leaf, harvested_nodes: BucketsCache) -> Buckets:
+def _harvest_leaf(leaf: Leaf, harvested_nodes: BucketsCache, unsafe_rng: Random) -> Buckets:
     low_threshold = leaf.context.anonymization_context.anonymization_params.low_count_params.low_threshold
     if leaf.is_over_threshold(low_threshold):
         if leaf.is_singularity() or leaf.dimensions() == 1:
             return [Bucket(tuple(leaf.bucket_intervals()), leaf.noisy_count())]
         else:
-            return _refine_buckets(leaf, harvested_nodes, leaf.noisy_count())
+            return _refine_buckets(leaf, harvested_nodes, leaf.noisy_count(), unsafe_rng)
     else:
         return []
 
 
-def _harvest_branch(branch: Branch, harvested_nodes: BucketsCache) -> Buckets:
+def _harvest_branch(branch: Branch, harvested_nodes: BucketsCache, unsafe_rng: Random) -> Buckets:
     children_buckets = list(
-        chain.from_iterable(_harvest_node(child_node, harvested_nodes) for child_node in branch.children.values())
+        chain.from_iterable(
+            _harvest_node(child_node, harvested_nodes, unsafe_rng) for child_node in branch.children.values()
+        )
     )
 
     children_count = sum(bucket.count for bucket in children_buckets)
@@ -223,23 +225,25 @@ def _harvest_branch(branch: Branch, harvested_nodes: BucketsCache) -> Buckets:
         if branch.dimensions() == 1:
             children_buckets = [Bucket(tuple(branch.bucket_intervals()), parent_count)]
         else:
-            children_buckets += _refine_buckets(branch, harvested_nodes, parent_count - children_count)
+            children_buckets += _refine_buckets(branch, harvested_nodes, parent_count - children_count, unsafe_rng)
     else:
         _adjust_counts(children_buckets, children_count, parent_count)
 
     return children_buckets
 
 
-def _harvest_node(node: Node, harvested_nodes: BucketsCache) -> Buckets:
+def _harvest_node(node: Node, harvested_nodes: BucketsCache, unsafe_rng: Random) -> Buckets:
     if harvested_nodes.get(node) is None:
         harvester = _harvest_leaf if isinstance(node, Leaf) else _harvest_branch
-        harvested_nodes[node] = harvester(node, harvested_nodes)  # type: ignore
+        harvested_nodes[node] = harvester(node, harvested_nodes, unsafe_rng)  # type: ignore
 
     return harvested_nodes[node]
 
 
-def harvest(node: Node) -> Buckets:
+# The passed RNG isn't safe for anonymization, so it can only be applied to already anonymized data.
+# Used for randomly matching subintervals during refining.
+def harvest(node: Node, unsafe_rng: Random) -> Buckets:
     # Maps node.NodeData.Id to its already harvested buckets, so it's done only once.
     harvested_nodes: BucketsCache = dict()
-    buckets = _harvest_node(node, harvested_nodes)
+    buckets = _harvest_node(node, harvested_nodes, unsafe_rng)
     return [bucket for bucket in buckets if bucket.count > 0]
