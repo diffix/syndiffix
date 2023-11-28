@@ -16,7 +16,7 @@ profile = "black"
 
 [tool.poetry]
 name = "syndiffix"
-version = "1.0.0a2"
+version = "1.0.0b0"
 description = "Python implementation of the SynDiffix synthetic data generation mechanism."
 authors = ["Open Diffix <hello@open-diffix.org>"]
 readme = "README.md"
