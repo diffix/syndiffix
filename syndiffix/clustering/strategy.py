@@ -132,8 +132,8 @@ class MlClustering(ClusteringStrategy):
                 _resolve_column_id(forest, self.target_column),
                 feature_ids,
                 self.max_weight,
-                forest,
                 entropy_1dim,
+                self.drop_non_features,
             ),
             entropy_1dim,
         )
