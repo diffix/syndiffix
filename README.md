@@ -107,4 +107,4 @@ A paper describing the design of **SynDiffix**, its performance, and its anonymi
 A per-dimension range is internally called an interval (and handled by the `Interval` class), in order to avoid
 potential name clashes with the native Python `range` API.
 
-Development details are available [here](docs/development.md).
+Development instructions are available [here](docs/development.md).
