@@ -96,3 +96,15 @@ df_synthetic = Synthesizer(df_original, pids=df_pids).sample()
 ### Other parameters
 
 There are a wide variety of parameters that control the operation of **SynDiffix**. They are documented [here](docs/parameters.md).
+
+### Additional information
+
+A step-by-step description of the algorithm can be found [here](docs/algorithm.md).
+
+A paper describing the design of **SynDiffix**, its performance, and its anonymity properties can be found
+[here on ArXiv](https://arxiv.org/abs/2311.09628).
+
+A per-dimension range is internally called an interval (and handled by the `Interval` class), in order to avoid
+potential name clashes with the native Python `range` API.
+
+Development details are available [here](docs/development.md).

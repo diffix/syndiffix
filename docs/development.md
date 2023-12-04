@@ -10,15 +10,6 @@ Activate `poetry` environment: `poetry shell`. (can skip, then prepend `poetry r
 - Test: `pytest .`
 - Check: `flake8 . && mypy . && black --check . && isort . --check`
 
-### Implementation details
-
-A step-by-step description of the algorithm can be found [here](docs/algorithm.md).
-
-A paper describing the design of **SynDiffix**, its performance, and its anonymity properties can be found [here on ArXiv](https://arxiv.org/abs/2311.09628).
-
-A per-dimension range is internally called an interval (and handled by the `Interval` class), in order to avoid
-potential name clashes with the native Python `range` API.
-
 ### Creating a new release
 
 First, update the project's version by editing the `[tool.poetry]` section from the `pyproject.toml` file.
