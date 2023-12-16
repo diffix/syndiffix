@@ -50,7 +50,7 @@ from syndiffix import Synthesizer
 df_synthetic = Synthesizer(df_original[['col1','col2']]).sample()
 ```
 
-Note that anonymity is preserved regardless of how many different synthetic dataframes are generated from any given column.
+See the [tutorial notebook](docs/tutorial.ipynb) for an example. Note that anonymity is preserved regardless of how many different synthetic dataframes are generated from any given column.
 
 ### Maximizing ML efficacy relative to a given target column
 
@@ -62,7 +62,7 @@ from syndiffix import Synthesizer
 df_synthetic = Synthesizer(df_original, target_column='your_target_col')
 ```
 
-Note that the quality of the predictive model for the target column will be much better than when not specifying the target column. If a model is needed for a different target column, then a separate synthetic dataframe should be created.
+Note that the quality of the predictive model for the target column will be much better than when not specifying the target column. If a model is needed for a different target column, then a separate synthetic dataframe should be created. See the [tutorial notebook](docs/tutorial.ipynb) for an example.
 
 ### Managing protected entities
 
@@ -98,6 +98,8 @@ df_synthetic = Synthesizer(df_original, pids=df_pids).sample()
 There are a wide variety of parameters that control the operation of **SynDiffix**. They are documented [here](docs/parameters.md).
 
 ### Additional information
+
+The [time-series notebook](docs/time-series.ipynb) gives examples of how to obtain accurate statistics from time-series data. The [clustering notebook](docs/clustering.ipynb) gives examples about how to control the underlying clustering algorithm.
 
 A step-by-step description of the algorithm can be found [here](docs/algorithm.md).
 
