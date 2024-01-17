@@ -30,6 +30,7 @@ from syndiffix.interval import *
 def test_snapping(raw: Interval, snapped: Interval) -> None:
     assert snap_interval(raw) == snapped
 
+
 def test_prepares_null_mappings() -> None:
     assert get_null_mapping(Interval(1.2, 1.3)) == 2.6
     assert get_null_mapping(Interval(1.2, 1.2)) == 2.4
