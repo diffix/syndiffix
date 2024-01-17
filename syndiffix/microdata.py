@@ -146,15 +146,6 @@ def _microdata_row_generator(
         yield [_generate(i, c, nm, rng) for i, c, nm in zip(intervals, convertors, null_mappings)]
 
 
-def get_null_mapping(interval: Interval) -> float:
-    if interval.max > 0:
-        return 2 * interval.max
-    elif interval.min < 0:
-        return 2 * interval.min
-    else:
-        return 1.0
-
-
 def get_convertor(df: pd.DataFrame, column: str) -> DataConvertor:
     dtype = df.dtypes[column]
     if is_integer_dtype(dtype):
