@@ -10,8 +10,7 @@ from pandas.api.types import is_float_dtype, is_integer_dtype, is_string_dtype
 
 from .anonymizer import hash_pid, noisy_row_limit
 from .common import *
-from .interval import Interval, snap_interval
-from .microdata import get_null_mapping
+from .interval import Interval, get_null_mapping, snap_interval
 from .tree import *
 
 
