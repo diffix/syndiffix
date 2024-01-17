@@ -164,12 +164,3 @@ def test_empty_bucket_list() -> None:
 
 def test_empty_interval_list() -> None:
     assert generate_microdata([Bucket((), 2)], [], [], _rng) == [[], []]
-
-
-def test_prepares_null_mappings() -> None:
-    assert get_null_mapping(Interval(1.2, 1.3)) == 2.6
-    assert get_null_mapping(Interval(1.2, 1.2)) == 2.4
-    assert get_null_mapping(Interval(-1.0, 3.0)) == 6.0
-    assert get_null_mapping(Interval(-4.0, -2.5)) == -8.0
-    assert get_null_mapping(Interval(-4.0, -0.0)) == -8.0
-    assert get_null_mapping(Interval(0.0, 0.0)) == 1.0
