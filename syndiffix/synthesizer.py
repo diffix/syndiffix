@@ -98,6 +98,8 @@ class Synthesizer(object):
         )
 
         self.clusters, self.entropy_1dim = clustering.build_clusters(self.forest)
+        for col_id, converter in enumerate(self.column_convertors):
+            converter.map_tree(self.forest.get_tree((ColumnId(col_id),)))
 
     def sample(self) -> pd.DataFrame:
         def materialize_tree(forest: Forest, columns: list[ColumnId]) -> tuple[list[MicrodataRow], Combination]:

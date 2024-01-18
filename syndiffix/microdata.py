@@ -18,6 +18,7 @@ from pandas.api.types import (
 from .bucket import Buckets
 from .common import ColumnType, Value
 from .interval import Interval, Intervals
+from .tree import Branch, Leaf, Node
 
 MICRODATA_SYN_VALUE: Literal[0] = 0
 MICRODATA_FLOAT_VALUE: Literal[1] = 1
@@ -40,6 +41,9 @@ class DataConvertor(ABC):
 
     @abstractmethod
     def from_interval(self, interval: Interval, rng: Random) -> MicrodataValue:
+        pass
+
+    def map_tree(self, root: Node) -> None:
         pass
 
 
@@ -104,6 +108,7 @@ class StringConvertor(DataConvertor):
             if not isinstance(value, str):
                 raise TypeError(f"Not a `str` object in a string dtype column: {value}.")
         self.value_map = sorted(cast(Set[str], unique_values))
+        self.safe_values: Set[int] = set()
 
     def column_type(self) -> ColumnType:
         return ColumnType.STRING
@@ -120,13 +125,31 @@ class StringConvertor(DataConvertor):
             return self._map_interval(interval, rng)
 
     def _map_interval(self, interval: Interval, rng: Random) -> MicrodataValue:
-        # Finds a common prefix of the strings encoded as interval boundaries and appends "*"
-        # and a random number to ensure that the count of distinct values approximates that in the original data.
-        min_value = self.value_map[int(interval.min)]
-        max_value = self.value_map[min(int(interval.max), len(self.value_map) - 1)]
-        value = int(_generate_float(interval, rng))
+        # If a randomly selected value from the interval is not safe, finds a common prefix of the strings encoded as interval boundaries and appends "*" and a random number to ensure that the count of distinct values approximates that in the original data.
+        min_value = int(interval.min)
+        # max_value is inclusive
+        max_value = min(int(interval.max) - 1, len(self.value_map) - 1)
+        value = rng.randint(min_value, max_value)
+        if value in self.safe_values:
+            return (self.value_map[value], float(value))
+        else:
+            print(f"No safe value for {float(value)}")
+            return (
+                commonprefix([self.value_map[min_value], self.value_map[max_value]]) + "*" + str(value),
+                float(value),
+            )
 
-        return (commonprefix([min_value, max_value]) + "*" + str(value), float(value))
+    def map_tree(self, root: Node) -> None:
+        def map_tree_walk(node: Node) -> None:
+            if isinstance(node, Leaf):
+                low_threshold = node.context.anonymization_context.anonymization_params.low_count_params.low_threshold
+                if node.is_singularity() and node.is_over_threshold(low_threshold):
+                    self.safe_values.add(int(node.actual_intervals[0].min))
+            elif isinstance(node, Branch):
+                for child_node in node.children.values():
+                    map_tree_walk(child_node)
+
+        map_tree_walk(root)
 
 
 def _generate_float(interval: Interval, rng: Random) -> float:

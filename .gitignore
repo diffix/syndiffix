@@ -23,3 +23,6 @@ __pycache__/
 
 # Ignore logs
 *.log
+
+# Ignore vscode workspace virtual environment
+/venv/
