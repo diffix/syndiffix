@@ -17,7 +17,9 @@ _rng = Random(0)
 
 
 def _make_safe_values_df() -> pd.DataFrame:
-    # Each column in this dataframe has 10 instances each of 30 distinct strings. This ensures that distinct string is safe (passes LCF). However since there are 3^30 possible 3dim combinations, there won't be any singluarity 3dim buckets
+    # Each column in this dataframe has 10 instances each of 30 distinct strings.
+    # This ensures that distinct string is safe (passes LCF). However since there
+    # are 3^30 possible 3dim combinations, there won't be any singluarity 3dim buckets
     columns = ["a", "b", "c"]
     values = []
     for i, column in enumerate(columns):
@@ -34,7 +36,9 @@ def _make_safe_values_df() -> pd.DataFrame:
 
 
 def _tweak_safe_values_df(df: pd.DataFrame, values_to_tweak: list[int] = [29]) -> None:
-    # This takes one or more distinct values in each column, and changes every instance to a random value, thus ensuring that some 1dim values will fail LCF, producing non-singularity leafs
+    # This takes one or more distinct values in each column, and changes every
+    # instance to a random value, thus ensuring that some 1dim values will
+    # fail LCF, producing non-singularity leafs
     def ran_str10() -> str:
         return "".join(random.choice(string.ascii_letters) for i in range(10))
 
@@ -205,7 +209,7 @@ def test_safe_values_set_all() -> None:
     assert results.shape == data.shape
     forest = create_forest(results)
     for col_id, converter in enumerate(convertors):
-        converter.map_tree(forest.get_tree((ColumnId(col_id),)))
+        converter.analyze_tree(forest.get_tree((ColumnId(col_id),)))
     for col_id, column in enumerate(data.columns):
         assert data[column].nunique() == len(cast(StringConvertor, convertors[col_id]).safe_values)
 
@@ -219,7 +223,7 @@ def test_safe_values_set_most() -> None:
     assert results.shape == data.shape
     forest = create_forest(results)
     for col_id, converter in enumerate(convertors):
-        converter.map_tree(forest.get_tree((ColumnId(col_id),)))
+        converter.analyze_tree(forest.get_tree((ColumnId(col_id),)))
     for col_id, column in enumerate(data.columns):
         assert nuniques[col_id] == len(cast(StringConvertor, convertors[col_id]).safe_values) + 1
 
@@ -233,7 +237,8 @@ def test_safe_values_e2e_all() -> None:
 
 def test_safe_values_e2e_some() -> None:
     data = _make_safe_values_df()
-    # By tweaking multiple distinct values, we ensure that there will be buckets with no safe values, thus forcing "*" values
+    # By tweaking multiple distinct values, we ensure that there will be buckets
+    # with no safe values, thus forcing "*" values
     _tweak_safe_values_df(data, [20, 21, 22, 23, 24, 25, 26])
     syn_data = Synthesizer(data).sample()
     for column in syn_data:

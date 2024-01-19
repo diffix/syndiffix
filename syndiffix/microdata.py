@@ -43,7 +43,7 @@ class DataConvertor(ABC):
     def from_interval(self, interval: Interval, rng: Random) -> MicrodataValue:
         pass
 
-    def map_tree(self, root: Node) -> None:
+    def analyze_tree(self, root: Node) -> None:
         pass
 
 
@@ -133,23 +133,22 @@ class StringConvertor(DataConvertor):
         if value in self.safe_values:
             return (self.value_map[value], float(value))
         else:
-            print(f"No safe value for {float(value)}")
             return (
                 commonprefix([self.value_map[min_value], self.value_map[max_value]]) + "*" + str(value),
                 float(value),
             )
 
-    def map_tree(self, root: Node) -> None:
-        def map_tree_walk(node: Node) -> None:
+    def analyze_tree(self, root: Node) -> None:
+        def analyze_tree_walk(node: Node) -> None:
             if isinstance(node, Leaf):
                 low_threshold = node.context.anonymization_context.anonymization_params.low_count_params.low_threshold
                 if node.is_singularity() and node.is_over_threshold(low_threshold):
                     self.safe_values.add(int(node.actual_intervals[0].min))
             elif isinstance(node, Branch):
                 for child_node in node.children.values():
-                    map_tree_walk(child_node)
+                    analyze_tree_walk(child_node)
 
-        map_tree_walk(root)
+        analyze_tree_walk(root)
 
 
 def _generate_float(interval: Interval, rng: Random) -> float:
