@@ -1,14 +1,50 @@
+import string
 from io import StringIO
 from random import Random
 
+import numpy as np
 import pandas as pd
 import pytest
 
+from syndiffix import Synthesizer
 from syndiffix.bucket import Bucket
 from syndiffix.interval import Interval
 from syndiffix.microdata import *
 
+from .conftest import *
+
 _rng = Random(0)
+
+
+def _make_safe_values_df() -> pd.DataFrame:
+    # Each column in this dataframe has 10 instances each of 30 distinct strings.
+    # This ensures that distinct string is safe (passes LCF). However since there
+    # are 3^30 possible 3dim combinations, there won't be any singluarity 3dim buckets
+    columns = ["a", "b", "c"]
+    values = []
+    for i, column in enumerate(columns):
+        values.append([column + str(x) for x in range(1, 31)])
+        values[i] = values[i] * 10
+        np.random.shuffle(values[i])
+    return pd.DataFrame(
+        {
+            columns[0]: values[0],
+            columns[1]: values[1],
+            columns[2]: values[2],
+        }
+    )
+
+
+def _tweak_safe_values_df(df: pd.DataFrame, values_to_tweak: list[int] = [29]) -> None:
+    # This takes one or more distinct values in each column, and changes every
+    # instance to a random value, thus ensuring that some 1dim values will
+    # fail LCF, producing non-singularity leafs
+    def ran_str10() -> str:
+        return "".join(random.choice(string.ascii_letters) for i in range(10))
+
+    for column in df.columns:
+        for value_to_tweak in values_to_tweak:
+            df[column] = df[column].apply(lambda x: ran_str10() if str(x).endswith(str(value_to_tweak)) else x)
 
 
 def _get_convertors(df: pd.DataFrame) -> list[DataConvertor]:
@@ -164,3 +200,46 @@ def test_empty_bucket_list() -> None:
 
 def test_empty_interval_list() -> None:
     assert generate_microdata([Bucket((), 2)], [], [], _rng) == [[], []]
+
+
+def test_safe_values_set_all() -> None:
+    data = _make_safe_values_df()
+    convertors = _get_convertors(data)
+    results = apply_convertors(convertors, data)
+    assert results.shape == data.shape
+    forest = create_forest(results)
+    for col_id, converter in enumerate(convertors):
+        converter.analyze_tree(forest.get_tree((ColumnId(col_id),)))
+    for col_id, column in enumerate(data.columns):
+        assert data[column].nunique() == len(cast(StringConvertor, convertors[col_id]).safe_values)
+
+
+def test_safe_values_set_most() -> None:
+    data = _make_safe_values_df()
+    nuniques = [data[col].nunique() for col in data.columns]
+    _tweak_safe_values_df(data)
+    convertors = _get_convertors(data)
+    results = apply_convertors(convertors, data)
+    assert results.shape == data.shape
+    forest = create_forest(results)
+    for col_id, converter in enumerate(convertors):
+        converter.analyze_tree(forest.get_tree((ColumnId(col_id),)))
+    for col_id, column in enumerate(data.columns):
+        assert nuniques[col_id] == len(cast(StringConvertor, convertors[col_id]).safe_values) + 1
+
+
+def test_safe_values_e2e_all() -> None:
+    data = _make_safe_values_df()
+    syn_data = Synthesizer(data).sample()
+    for column in syn_data:
+        assert syn_data[column].apply(lambda x: "*" in str(x)).sum() == 0
+
+
+def test_safe_values_e2e_some() -> None:
+    data = _make_safe_values_df()
+    # By tweaking multiple distinct values, we ensure that there will be buckets
+    # with no safe values, thus forcing "*" values
+    _tweak_safe_values_df(data, [20, 21, 22, 23, 24, 25, 26])
+    syn_data = Synthesizer(data).sample()
+    for column in syn_data:
+        assert syn_data[column].apply(lambda x: "*" in str(x)).sum() != 0
