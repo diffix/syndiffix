@@ -125,7 +125,10 @@ class StringConvertor(DataConvertor):
             return self._map_interval(interval, rng)
 
     def _map_interval(self, interval: Interval, rng: Random) -> MicrodataValue:
-        # If a randomly selected value from the interval is not safe, finds a common prefix of the strings encoded as interval boundaries and appends "*" and a random number to ensure that the count of distinct values approximates that in the original data.
+        # If a randomly selected value from the interval is not safe, finds a
+        # common prefix of the strings encoded as interval boundaries and
+        # appends "*" and a random number to ensure that the count of distinct
+        # values approximates that in the original data.
         min_value = int(interval.min)
         # max_value is inclusive
         max_value = min(int(interval.max) - 1, len(self.value_map) - 1)
