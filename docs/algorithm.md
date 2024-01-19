@@ -106,13 +106,15 @@ and its snapped ranges elsewhere.
 - For each harvested bucket:
   - For 1..bucket.count:
     - For each range in the bucket:
-      - Generate a random float value inside the range.
+      - Generate a random float value inside the range. In the case of a **string** column, the upper edge of the range must not exceed the distinct values sorted array.
       - Cast the generated value back to the corresponding column type.
         - In the case of **string** columns:
           - If the range is a singularity:
             - Return the exact value.
           - Else:
-            - Return the common prefix of the range, plus `*`, plus a random integer from inside the range.
+            - If the random value is a singularity in the corresponding 1-dimensional tree and passes LCF, return the exact value.
+            - Else:
+              - Return the common prefix of the range, plus `*`, plus a random integer from inside the range.
     - Return a synthetic row from the generated values.
 
 ### Clustering
