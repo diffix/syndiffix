@@ -19,13 +19,8 @@ DERIVED_COLS_RATIO = 0.7
 def _col_weight(entropy: float) -> float:
     return 1.0 + math.sqrt(max(entropy, 1.0))
 
-
-def _floor_by(n: float, x: float) -> float:
-    if n == 0.0:
-        return 0.0
-    else:
-        return math.floor(x / n) * n
-
+def _floor_by(value: float, bin_size: float) -> float:
+    return math.floor(value / bin_size) * bin_size
 
 def _build_clusters(
     context: ClusteringContext,
