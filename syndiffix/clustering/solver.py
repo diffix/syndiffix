@@ -21,7 +21,10 @@ def _col_weight(entropy: float) -> float:
 
 
 def _floor_by(n: float, x: float) -> float:
-    return math.floor(x / n) * n
+    if n == 0.0:
+        return 0.0
+    else:
+        return math.floor(x / n) * n
 
 
 def _build_clusters(
