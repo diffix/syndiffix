@@ -26,3 +26,4 @@ __pycache__/
 
 # Ignore vscode workspace virtual environment
 /venv/
+/tests/my_debugger.py
