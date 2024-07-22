@@ -249,10 +249,10 @@ def solve_with_features(
     derived_clusters = [(StitchOwner.SHARED, [main_column], list(cluster.columns)) for cluster in clusters[1:]]
 
     ml_columns = [main_column] + main_features
-    low_effect_columns: list[DerivedCluster] = (
+    non_feature_columns: list[DerivedCluster] = (
         []
         if drop_non_features
         else [(StitchOwner.LEFT, [main_column], [ColumnId(c)]) for c in range(num_columns) if c not in ml_columns]
     )
 
-    return Clusters(initial_cluster=initial_cluster, derived_clusters=derived_clusters + low_effect_columns)
+    return Clusters(initial_cluster=initial_cluster, derived_clusters=derived_clusters + non_feature_columns)
