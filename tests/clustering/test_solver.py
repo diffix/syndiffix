@@ -36,8 +36,8 @@ def test_solve_with_features() -> None:
     assert clusters_patches.derived_clusters == [
         (StitchOwner.SHARED, [Col(0)], [Col(3), Col(4)]),
         (StitchOwner.SHARED, [Col(0)], [Col(5)]),
-        (StitchOwner.SHARED, [], [Col(6)]),
-        (StitchOwner.SHARED, [], [Col(7)]),
+        (StitchOwner.LEFT, [Col(0)], [Col(6)]),
+        (StitchOwner.LEFT, [Col(0)], [Col(7)]),
     ]
 
     clusters_no_patches = solver.solve_with_features(

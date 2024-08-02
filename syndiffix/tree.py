@@ -207,9 +207,11 @@ class Branch(Node):
 
         # Set child's subnodes to the matching-interval children of the parent's subnodes.
         subnodes = tuple(
-            subnode.children.get(Branch._remove_dimension_from_index(dim_index, child_index))
-            if isinstance(subnode, Branch)
-            else None
+            (
+                subnode.children.get(Branch._remove_dimension_from_index(dim_index, child_index))
+                if isinstance(subnode, Branch)
+                else None
+            )
             for dim_index, subnode in enumerate(self.subnodes)
         )
 
