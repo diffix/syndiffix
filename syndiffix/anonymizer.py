@@ -1,6 +1,7 @@
 import hashlib
 import math
 import operator
+import sys
 from collections import Counter
 from dataclasses import dataclass, field, replace
 from functools import reduce
@@ -40,6 +41,7 @@ def _random_uniform(interval: FlatteningInterval, seed: Hash) -> int:
 
 def _random_normal(sd: float, seed: Hash) -> float:
     u1 = (int(seed) & 0x7FFFFFFF) / 0x7FFFFFFF
+    u1 = max(u1, sys.float_info.epsilon)
     u2 = ((int(seed) >> 32) & 0x7FFFFFFF) / 0x7FFFFFFF
     normal = math.sqrt(-2.0 * math.log(u1)) * math.sin(2.0 * math.pi * u2)
     return sd * normal
