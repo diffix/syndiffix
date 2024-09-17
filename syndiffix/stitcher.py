@@ -3,7 +3,7 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 
-from .clustering.common import Clusters, MicrodataRow, StitchOwner
+from .clustering.common import MicrodataRow, StitchOwner
 from .clustering.measures import measure_entropy
 from .clustering.stitching import StitchingMetadata, _do_stitch
 from .clustering.strategy import NoClustering
