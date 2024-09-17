@@ -11,12 +11,6 @@ from .common import ColumnId, Combination
 from .synthesizer import Synthesizer
 
 
-def _build_rows(
-    df: pd.DataFrame, orig_data: pd.DataFrame, col_names_all: list[str], columns: list[ColumnId], right: bool
-) -> list[MicrodataRow]:
-    pass
-
-
 def _make_synthesizers(
     df_left: pd.DataFrame,
     df_right: pd.DataFrame,
@@ -39,7 +33,7 @@ def _make_microdata(
     columns: list[ColumnId],
 ) -> tuple[list[MicrodataRow], Combination]:
     col_names = list(df.columns)
-    microdata = []
+    microdata: list[MicrodataRow] = []
 
     for i in range(len(df)):
         row = []
