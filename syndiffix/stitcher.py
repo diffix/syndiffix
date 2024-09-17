@@ -40,7 +40,7 @@ def _make_microdata(
         for col_name in col_names:
             row.append((df[col_name].iloc[i], float(syn.forest.orig_data[col_name].iloc[i])))
         microdata.append(row)
-    return (microdata, (columns))
+    return (microdata, tuple(columns))
 
 
 def stitch(df_left: pd.DataFrame, df_right: pd.DataFrame, shared: bool = True) -> pd.DataFrame:
