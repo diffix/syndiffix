@@ -27,3 +27,7 @@ __pycache__/
 # Ignore vscode workspace virtual environment
 /venv/
 /tests/my_debugger.py
+
+# Ignore test files
+.sdx_blob_test_blob/
+test_blob.zip
