@@ -29,5 +29,5 @@ __pycache__/
 /tests/my_debugger.py
 
 # Ignore test files
-.sdx_blob_test_blob/
-test_blob.zip
+tests/.sdx_blob_test_blob/
+tests/test_blob.zip

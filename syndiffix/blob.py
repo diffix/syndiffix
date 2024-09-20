@@ -15,6 +15,7 @@ from .clustering.measures import measure_entropy, measure_all, DependenceMeasure
 from .clustering.stitching import StitchingMetadata, _do_stitch
 from .clustering.strategy import NoClustering
 from .clustering.solver import _do_solve
+from .clustering.features import select_features_ml, FeatureSelectionResult
 from .common import ColumnId, AnonymizationParams, SuppressionParams, FlatteningInterval, BucketizationParams
 from .synthesizer import Synthesizer
 
@@ -32,6 +33,8 @@ class BlobFiles(Enum):
     ANONYMIZATION_PARAMS = "_meta_anonymization_params.json"
     BUCKETIZATION_PARAMS = "_meta_bucketization_params.json"
     CLUSTER_PARAMS = "_meta_cluster_params.json"
+    COLUMNS = "_meta_columns.json"
+    FEATURES = "_meta_features.json"
 
 class SyndiffixBlob(object):
     def __init__(self,
@@ -49,6 +52,7 @@ class SyndiffixBlob(object):
         # This is where the unzipped blob files go
         self.path_to_blob_dir: Path = None
 
+        self.features: dict[str, dict[str, FeatureSelectionResult]] = None
         self.measures: DependenceMeasures = None
         self.context: ClusteringContext = None
         self.anonymization_params: AnonymizationParams = None
@@ -178,6 +182,9 @@ class SyndiffixBlobWriter(SyndiffixBlob):
             df_1col = df_syn_no_clustering[[column]]
             self._parquet_writer(df_1col, f"{self._data_filename([column])}.parquet")
         col_names_all = syn.forest.columns
+        self._compute_ml_features(col_names_all)
+        self._write_features()
+        self._write_column_names(col_names_all)
         # Build all the 2-dim tables
         for comb in combinations(range(len(col_names_all)), 2):
             # By forcing the clusters to be two columns only, we trick syn.smaple() into
@@ -187,6 +194,7 @@ class SyndiffixBlobWriter(SyndiffixBlob):
             )
             df_2col = syn.sample()
             self._parquet_writer(df_2col, f"{self._data_filename(list(df_2col.columns))}.parquet")
+        # measure_all gives us the pairwise dependence measures and the 1dim entropy measures
         self.measures = measure_all(syn.forest)
         self._write_measures()
         # Build 3-dim and larger tables, so long as no clusters are formed
@@ -226,6 +234,38 @@ class SyndiffixBlobWriter(SyndiffixBlob):
                 # tree for new_comb is no longer needed. Delete to save memory.
                 del syn.forest._tree_cache[new_comb]
 
+
+    def _compute_ml_features(self, col_names_all: list[str]) -> None:
+        self.features = {}
+        for column in col_names_all:
+            self.features[column] = select_features_ml(df=self.df_raw,
+                                                       column=column,
+                                                       classifier_model=None,
+                                                       regressor_model=None,
+                                                       one_hot_X=False)
+
+    def _write_features(self) -> None:
+        def _round_scores(scores: list[float]) -> list[float]:
+            return [round(score, 2) for score in scores]
+
+        features = {}
+        for column, feature in self.features.items():
+            features[column] = {
+                'valid': feature.valid,
+                'features': feature.features,
+                'k': feature.k,
+                'k_features': feature.k_features,
+                'cumulative_score': feature.cumulative_score,
+                'cumulative_score_std': feature.cumulative_score_std,
+                'encoded_scores': feature.encoded_scores,
+            }
+            # round in order to hide fine details of the data
+            features[column]['cumulative_score'] = _round_scores(features[column]['cumulative_score'])
+            features[column]['cumulative_score_std'] = _round_scores(features[column]['cumulative_score_std'])
+            features[column]['encoded_scores']['cumulative_score'] = _round_scores(features[column]['encoded_scores']['cumulative_score'])
+            features[column]['encoded_scores']['cumulative_score_std'] = _round_scores(features[column]['encoded_scores']['cumulative_score_std'])
+        self._json_writer(features, BlobFiles.FEATURES.value)
+
     def _write_version(self) -> None:
         self._json_writer(self.write_version, BlobFiles.VERSION.value)
 
@@ -247,10 +287,13 @@ class SyndiffixBlobWriter(SyndiffixBlob):
         file_path = self.path_to_blob_dir.joinpath(filename)
         try:
             with open(file_path, 'w', encoding='utf-8') as file:
-                json.dump(x, file)
+                json.dump(x, file, indent=4)
         except Exception as e:
             raise IOError(f"Failed to write to file {file_path}: {e}") from e
 
+    def _write_column_names(self, column_names) -> None:
+        self._json_writer(column_names, BlobFiles.COLUMNS.value)
+    
 
     def _write_cluster_params(self) -> None:
         cp = {
@@ -301,6 +344,7 @@ class SyndiffixBlobReader(SyndiffixBlob):
         ) -> None:
         super().__init__(blob_name, path_to_dir)  # Call the base class initializer
         self.read_version: int = None
+        self.columns = None
         self.cache_df_in_memory = cache_df_in_memory
         self.catalog = {}
         self._unzip_blob()
@@ -325,8 +369,20 @@ class SyndiffixBlobReader(SyndiffixBlob):
         self._read_measures()
         self._read_anonymization_params()
         self._read_bucketization_params()
+        self._read_column_names()
+        self._read_features()
         self._load_catalog()
-        pass
+
+    def read_blob(self, columns: list[str], target_column: Optional[str] = None) -> pd.DataFrame:
+        columns.sort()
+        if columns in self.catalog:
+            if self.catalog[columns]['df'] is not None:
+                return self.catalog[columns]['df']
+            else:
+                return self._parquet_reader(self.catalog['file_path'])
+        else:
+            # Need to stitch! zzzz
+            pass
 
     def _load_catalog(self) -> None:
         for file_path in self.path_to_blob_dir.iterdir():
@@ -338,6 +394,20 @@ class SyndiffixBlobReader(SyndiffixBlob):
                 if not self.cache_df_in_memory:
                     df = None
                 self.catalog[columns] = {'df': df, 'file_path': file_path}
+
+    def _read_features(self) -> None:
+        features = self._json_reader(BlobFiles.FEATURES.value)
+        self.features = {}
+        for column, feature in features.items():
+            self.features[column] = FeatureSelectionResult(
+                valid=feature['valid'],
+                features=feature['features'],
+                k=feature['k'],
+                k_features=feature['k_features'],
+                cumulative_score=feature['cumulative_score'],
+                cumulative_score_std=feature['cumulative_score_std'],
+                encoded_scores=feature['encoded_scores'],
+            )
 
     def _read_version(self) -> None:
         self.read_version = int(self._json_reader(BlobFiles.VERSION.value))
@@ -371,6 +441,9 @@ class SyndiffixBlobReader(SyndiffixBlob):
             precision_limit_row_fraction=bp['precision_limit_row_fraction'],
             precision_limit_depth_threshold=bp['precision_limit_depth_threshold'],
         )
+
+    def _read_column_names(self) -> None:
+        self.columns = self._json_reader(BlobFiles.COLUMNS.value)
 
     def _read_cluster_params(self) -> None:
         cp = self._json_reader(BlobFiles.CLUSTER_PARAMS.value)
