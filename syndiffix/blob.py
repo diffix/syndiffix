@@ -6,15 +6,16 @@ import json
 import shutil
 from enum import Enum
 from itertools import combinations
+from dataclasses import dataclass
 import numpy.typing as npt
 import numpy as np
 import pandas as pd
 
-from .clustering.common import Clusters, ClusteringContext, MicrodataRow, StitchOwner
+from .clustering.common import Clusters, ClusteringContext, Entropy1Dim
 from .clustering.measures import measure_entropy, measure_all, DependenceMeasures
 from .clustering.stitching import StitchingMetadata, _do_stitch
 from .clustering.strategy import NoClustering
-from .clustering.solver import _do_solve
+from .clustering.solver import _do_solve, solve_with_features
 from .clustering.features import select_features_ml, FeatureSelectionResult
 from .common import ColumnId, AnonymizationParams, SuppressionParams, FlatteningInterval, BucketizationParams
 from .synthesizer import Synthesizer
@@ -23,8 +24,14 @@ from .synthesizer import Synthesizer
 def _shrink_matrix(matrix: npt.NDArray, comb: tuple[int]) -> npt.NDArray:
     return matrix[np.ix_(comb, comb)]
 
-def _shrink_entropy_1dim(entropy_1dim: npt.NDArray[np.float_], comb: tuple[int, ...]) -> npt.NDArray[np.float_]:
+def _shrink_entropy_1dim(entropy_1dim: npt.NDArray[np.float_], comb: tuple[int, ...]) -> Entropy1Dim:
     return entropy_1dim[list(comb)]
+
+@dataclass(frozen=True)
+class FeaturesContext:
+    main_column: ColumnId
+    main_features: list[ColumnId]
+    entropy_1dim: Entropy1Dim
 
 class BlobFiles(Enum):
     VERSION = "_meta_version.json"
@@ -40,13 +47,18 @@ class SyndiffixBlob(object):
     def __init__(self,
                  blob_name: str,
                  path_to_dir: Optional[Union[str, Path]] = None,
+                 force: Optional[bool] = False,
                  ) -> None:
         self.unsafe_rng = random.Random(0)
         self.blob_name = blob_name
+        self.force = force
         # This is where the zipped blob is
         self.path_to_dir = None
+        self.blob_dir_name = None
+        self.col_names_all = None
         self.sample_size = None
-        self.max_weight = None
+        self.default_max_weight = None
+        self.ml_max_weight = None
         self.merge_threshold = None
         self.solver_alpha = None
         # This is where the unzipped blob files go
@@ -60,7 +72,27 @@ class SyndiffixBlob(object):
 
         self._make_paths(path_to_dir)
     
+    def _features_context(self, comb: tuple[int], columns: tuple[str], target_column: str) -> FeaturesContext:
+        features_all = self.features[target_column]
+        main_features = []
+        # This algorithm is a bit funky, because features_all was computed from the complete table,
+        # while here we are trying to interpret it relative to a partial table. This needs more thought,
+        # but for now we just 'features' rather than 'k_features' in the hope that this is somewhat
+        # more robust
+        for feature in features_all.features:
+            if feature in columns:
+                feature_id = ColumnId(columns.index(feature))
+                main_features.append(feature_id)
+        return FeaturesContext(
+            main_column=ColumnId(columns.index(target_column)),
+            main_features=main_features,
+            entropy_1dim=_shrink_entropy_1dim(self.measures.entropy_1dim, comb),
+        )
+
     def _clustering_context(self, comb: tuple[int]) -> ClusteringContext:
+        # the index values in comb are relative to the all columns (self.col_names_all)
+        # However, the indices in the returned clustering_context are relative to
+        # the data structures in clustering_context
         dependency_matrix = _shrink_matrix(self.measures.dependency_matrix, comb)
         entropy_1dim = _shrink_entropy_1dim(self.measures.entropy_1dim, comb)
         total_per_column = [
@@ -92,7 +124,10 @@ class SyndiffixBlob(object):
                 raise ValueError(f"Failed to convert path_to_dir to a Path object: {e}") from e
         if not self.path_to_dir.is_dir():
             raise NotADirectoryError(f"The path {self.path_to_dir} is not an existing directory.")
-        self.path_to_blob_dir = self.path_to_dir.joinpath(f".sdx_blob_{self.blob_name}")
+        self.blob_dir_name = f".sdx_blob_{self.blob_name}"
+        self.path_to_blob_dir = self.path_to_dir.joinpath(self.blob_dir_name)
+        if self.force:
+            shutil.rmtree(self.path_to_blob_dir, ignore_errors=True)
         if self.path_to_blob_dir.exists():
             raise FileExistsError(f"Something already exists at temporary working directory {self.path_to_blob_dir}.")
         try:
@@ -132,15 +167,18 @@ class SyndiffixBlobWriter(SyndiffixBlob):
     def __init__(self,
                  blob_name: str,
                  path_to_dir: Optional[Union[str, Path]] = None,
+                 force: Optional[bool] = False,
                  sample_size: Optional[int] = 1000,
-                 max_weight: Optional[float] = 15.0,
+                 default_max_weight: Optional[float] = 15.0,
+                 ml_max_weight: Optional[float] = 15.0,
                  merge_threshold: Optional[float] = 0.1,
                  solver_alpha: Optional[float] = 1e-2,
                  ) -> None:
-        super().__init__(blob_name, path_to_dir)  # Call the base class initializer
+        super().__init__(blob_name, path_to_dir, force=force)  # Call the base class initializer
         self.write_version: int = 1
         self.sample_size = sample_size
-        self.max_weight = max_weight
+        self.default_max_weight = default_max_weight
+        self.ml_max_weight = ml_max_weight
         self.merge_threshold = merge_threshold
         self.solver_alpha = solver_alpha
 
@@ -171,24 +209,26 @@ class SyndiffixBlobWriter(SyndiffixBlob):
         self._write_version()
         # Build a synthesizer that synthesizes each column independently of the others
         syn = Synthesizer(self.df_raw, pids=self.pids, clustering=NoClustering())
+        self.col_names_all = syn.forest.columns
         self.anonymization_params = syn.forest.anonymization_params
         self._write_anonymization_params()
         self.bucketization_params = syn.forest.bucketization_params
         self._write_bucketization_params()
         self._write_cluster_params()
-        df_syn_no_clustering = syn.sample()
-        # Save all of the 1-column tables
-        for column in df_syn_no_clustering.columns:
-            df_1col = df_syn_no_clustering[[column]]
-            self._parquet_writer(df_1col, f"{self._data_filename([column])}.parquet")
-        col_names_all = syn.forest.columns
-        self._compute_ml_features(col_names_all)
+        # Build the 1-dim tables
+        for comb in combinations(range(len(self.col_names_all)), 1):
+            # By forcing the initial cluster to be the columns we want, we trick syn.sample()
+            syn.clusters = Clusters(initial_cluster=[ColumnId(comb[0])],
+                                    derived_clusters=[],
+            )
+            df_1col = syn.sample()
+            self._parquet_writer(df_1col, f"{self._data_filename(list(df_1col.columns))}.parquet")
+
+        self._compute_ml_features()
         self._write_features()
-        self._write_column_names(col_names_all)
+        self._write_column_names()
         # Build all the 2-dim tables
-        for comb in combinations(range(len(col_names_all)), 2):
-            # By forcing the clusters to be two columns only, we trick syn.smaple() into
-            # building exactly the 2dim table
+        for comb in combinations(range(len(self.col_names_all)), 2):
             syn.clusters = Clusters(initial_cluster=[ColumnId(comb[0]), ColumnId(comb[1])],
                                     derived_clusters=[],
             )
@@ -198,7 +238,7 @@ class SyndiffixBlobWriter(SyndiffixBlob):
         self.measures = measure_all(syn.forest)
         self._write_measures()
         # Build 3-dim and larger tables, so long as no clusters are formed
-        for comb in combinations(range(len(col_names_all)), 3):
+        for comb in combinations(range(len(self.col_names_all)), 3):
             # By forcing the clusters to be two columns only, we trick syn.smaple() into
             # building exactly the 2dim table
             syn.clusters = Clusters(initial_cluster=[ColumnId(comb[0]), ColumnId(comb[1]), ColumnId(comb[2])],
@@ -206,7 +246,7 @@ class SyndiffixBlobWriter(SyndiffixBlob):
             )
             df_3col = syn.sample()
             self._parquet_writer(df_3col, f"{self._data_filename(list(df_3col.columns))}.parquet")
-            self._build_larger_tables(syn, comb, len(col_names_all)-1)
+            self._build_larger_tables(syn, comb, len(self.col_names_all)-1)
         # zip up the blob
         self._zip_blob()
         shutil.rmtree(self.path_to_blob_dir)
@@ -218,7 +258,7 @@ class SyndiffixBlobWriter(SyndiffixBlob):
         for i in range(next_start, maxval+1):
             new_comb = comb + (i,)
             context = self._clustering_context(new_comb)
-            clusters = _do_solve(context, self.max_weight, self.merge_threshold, self.solver_alpha)
+            clusters = _do_solve(context, self.default_max_weight, self.merge_threshold, self.solver_alpha)
             if len(clusters.derived_clusters) == 0:
                 # There is no clustering here, so we want to generate the table and try larger tables
                 # _do_solve has no notion of column indexes. It operates as though the column IDs
@@ -235,9 +275,9 @@ class SyndiffixBlobWriter(SyndiffixBlob):
                 del syn.forest._tree_cache[new_comb]
 
 
-    def _compute_ml_features(self, col_names_all: list[str]) -> None:
-        self.features = {}
-        for column in col_names_all:
+    def _compute_ml_features(self) -> None:
+        self.features: dict[str, dict[str, FeatureSelectionResult]] = {}
+        for column in self.col_names_all:
             self.features[column] = select_features_ml(df=self.df_raw,
                                                        column=column,
                                                        classifier_model=None,
@@ -291,14 +331,15 @@ class SyndiffixBlobWriter(SyndiffixBlob):
         except Exception as e:
             raise IOError(f"Failed to write to file {file_path}: {e}") from e
 
-    def _write_column_names(self, column_names) -> None:
-        self._json_writer(column_names, BlobFiles.COLUMNS.value)
+    def _write_column_names(self) -> None:
+        self._json_writer(self.col_names_all, BlobFiles.COLUMNS.value)
     
 
     def _write_cluster_params(self) -> None:
         cp = {
             'sample_size': self.sample_size,
-            'max_weight': self.max_weight,
+            'default_max_weight': self.default_max_weight,
+            'ml_max_weight': self.ml_max_weight,
             'merge_threshold': self.merge_threshold,
             'solver_alpha': self.solver_alpha,
         }
@@ -337,7 +378,8 @@ class SyndiffixBlobReader(SyndiffixBlob):
                  blob_name: str,
                  path_to_dir: Optional[Union[str, Path]] = None,
                  sample_size: Optional[int] = None,
-                 max_weight: Optional[float] = None,
+                 default_max_weight: Optional[float] = None,
+                 ml_max_weight: Optional[float] = None,
                  merge_threshold: Optional[float] = None,
                  solver_alpha: Optional[float] = None,
                  cache_df_in_memory: Optional[bool] = True,
@@ -353,8 +395,10 @@ class SyndiffixBlobReader(SyndiffixBlob):
         # are set as in the blob
         if sample_size is not None:
             self.sample_size = sample_size
-        if max_weight is not None:
-            self.max_weight = max_weight
+        if default_max_weight is not None:
+            self.default_max_weight = default_max_weight
+        if ml_max_weight is not None:
+            self.ml_max_weight = ml_max_weight
         if merge_threshold is not None:
             self.merge_threshold = merge_threshold
         if solver_alpha is not None:
@@ -374,15 +418,36 @@ class SyndiffixBlobReader(SyndiffixBlob):
         self._load_catalog()
 
     def read_blob(self, columns: list[str], target_column: Optional[str] = None) -> pd.DataFrame:
+        def _check_columns_exist(columns, col_names_all):
+            missing_columns = [col for col in columns if col not in col_names_all]
+            if missing_columns:
+                raise ValueError(f"Invalid columns: {', '.join(missing_columns)}")
+        _check_columns_exist(columns, self.col_names_all)
+        if target_column is not None and target_column not in self.col_names_all:
+            raise ValueError(f"Target column '{target_column}' is not a valid column.")
         columns.sort()
-        if columns in self.catalog:
-            if self.catalog[columns]['df'] is not None:
-                return self.catalog[columns]['df']
+        cols_tuple = tuple(columns)
+        if cols_tuple in self.catalog:
+            if self.catalog[cols_tuple]['df'] is not None:
+                return self.catalog[cols_tuple]['df']
             else:
-                return self._parquet_reader(self.catalog['file_path'])
+                return self._parquet_reader(self.catalog[cols_tuple]['file_path'])
+        # Need to stitch! 
+        comb, cols_tuple_sorted = self._absolute_column_indexes(cols_tuple)
+        if target_column is None:
+            context = self._clustering_context(comb)
+            clusters = _do_solve(context, self.default_max_weight, self.merge_threshold, self.solver_alpha)
         else:
-            # Need to stitch! zzzz
-            pass
+            features_context = self._features_context(comb, cols_tuple_sorted, target_column)
+            clusters = solve_with_features(
+                main_column=features_context.main_column,
+                main_features=features_context.main_features,
+                max_weight=self.ml_max_weight,
+                entropy_1dim=features_context.entropy_1dim,
+                drop_non_features=False,
+            )
+        # The values used in clusters align with the column names in cols_tuple zzzz
+        pass
 
     def _load_catalog(self) -> None:
         for file_path in self.path_to_blob_dir.iterdir():
@@ -397,7 +462,7 @@ class SyndiffixBlobReader(SyndiffixBlob):
 
     def _read_features(self) -> None:
         features = self._json_reader(BlobFiles.FEATURES.value)
-        self.features = {}
+        self.features: dict[str, dict[str, FeatureSelectionResult]] = {}
         for column, feature in features.items():
             self.features[column] = FeatureSelectionResult(
                 valid=feature['valid'],
@@ -408,6 +473,13 @@ class SyndiffixBlobReader(SyndiffixBlob):
                 cumulative_score_std=feature['cumulative_score_std'],
                 encoded_scores=feature['encoded_scores'],
             )
+
+    def _absolute_column_indexes(self, columns: tuple[str]) -> tuple[tuple[int], tuple[str]]:
+        indices = [self.col_names_all.index(col) for col in columns]
+        paired = list(zip(indices, columns))
+        paired_sorted = sorted(paired, key=lambda x: x[0])
+        indices_sorted,  columns_sorted = zip(*paired_sorted)
+        return tuple(indices_sorted), tuple(columns_sorted)
 
     def _read_version(self) -> None:
         self.read_version = int(self._json_reader(BlobFiles.VERSION.value))
@@ -443,12 +515,13 @@ class SyndiffixBlobReader(SyndiffixBlob):
         )
 
     def _read_column_names(self) -> None:
-        self.columns = self._json_reader(BlobFiles.COLUMNS.value)
+        self.col_names_all = self._json_reader(BlobFiles.COLUMNS.value)
 
     def _read_cluster_params(self) -> None:
         cp = self._json_reader(BlobFiles.CLUSTER_PARAMS.value)
         self.sample_size = cp['sample_size']
-        self.max_weight = cp['max_weight']
+        self.default_max_weight = cp['default_max_weight']
+        self.ml_max_weight = cp['ml_max_weight']
         self.merge_threshold = cp['merge_threshold']
         self.solver_alpha = cp['solver_alpha']
 
