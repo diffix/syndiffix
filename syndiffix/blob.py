@@ -210,7 +210,7 @@ class SyndiffixBlob(object):
         shutil.unpack_archive(str(zip_file_path), str(self.path_to_blob_dir), "zip")
 
 
-class SyndiffixBlobWriter(SyndiffixBlob):
+class SyndiffixBlobBuilder(SyndiffixBlob):
     def __init__(
         self,
         blob_name: str,
@@ -243,7 +243,7 @@ class SyndiffixBlobWriter(SyndiffixBlob):
         self.anonymization_params: AnonymizationParams
         self.bucketization_params: BucketizationParams
 
-    def write_blob(
+    def write(
         self,
         df_raw: pd.DataFrame,
         pids: Optional[pd.DataFrame] = None,

@@ -2,6 +2,7 @@ import argparse
 import itertools
 import os
 import random
+import time
 from pathlib import Path
 from typing import List, Tuple
 
@@ -9,11 +10,14 @@ import numpy as np
 import pandas as pd
 
 from syndiffix import Synthesizer
-from syndiffix.blob import SyndiffixBlobReader, SyndiffixBlobWriter
+from syndiffix.blob import SyndiffixBlobBuilder, SyndiffixBlobReader
 
 """
 To use, assign the env variable BLOB_TEST_PATH to the path of some test directory.
 Each directory under BLOB_TEST_PATH contains the tests for a single table.
+
+If you want to test an existing dataset, then place it in the test directory with the
+name <dir_name>_table.csv or <dir_name>.table.parquet
 """
 
 
@@ -98,8 +102,26 @@ def get_blob_paths(test_dir: str) -> Tuple[Path, Path]:
         raise ValueError("BLOB_TEST_PATH environment variable must be set")
     blob_test_path = Path(blob_test_env)
     blob_test_path = blob_test_path.joinpath(test_dir)
-    data_path = blob_test_path.joinpath(f"{test_dir}_table.parquet")
+    data_path_parquet = blob_test_path.joinpath(f"{test_dir}_table.parquet")
+    data_path_csv = blob_test_path.joinpath(f"{test_dir}_table.csv")
+    if data_path_parquet.exists() or not data_path_csv.exists():
+        data_path = data_path_parquet
+    else:
+        data_path = data_path_csv
+    print(f"Test path is {blob_test_path}, table path is {data_path}")
     return blob_test_path, data_path
+
+
+def read_data(data_path: Path) -> pd.DataFrame:
+    if not data_path.exists():
+        raise FileNotFoundError(f"The file at {str(data_path)} does not exist.")
+
+    if data_path.suffix == ".csv":
+        return pd.read_csv(data_path)
+    elif data_path.suffix == ".parquet":
+        return pd.read_parquet(data_path)
+    else:
+        raise ValueError(f"Unsupported file type: {data_path.suffix}")
 
 
 def setup(test_dir: str) -> None:
@@ -109,24 +131,28 @@ def setup(test_dir: str) -> None:
         return
     if test_dir == "small_table1":
         df_raw = make_dataframe_small()
-    df_raw.to_parquet(data_path)
+        df_raw.to_parquet(data_path)
 
 
 def write(test_dir: str) -> None:
     setup(test_dir)
     blob_test_path, data_path = get_blob_paths(test_dir)
 
-    df_raw = pd.read_parquet(data_path)
+    df_raw = read_data(data_path)
 
-    sbw = SyndiffixBlobWriter(blob_name=test_dir, path_to_dir=blob_test_path, force=True)
-
-    sbw.write_blob(df_raw=df_raw, pids=None)
+    start_time = time.time()
+    sbb = SyndiffixBlobBuilder(blob_name=test_dir, path_to_dir=blob_test_path, force=True)
+    sbb.write(df_raw=df_raw, pids=None)
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    with open(blob_test_path.joinpath("elapsed_time.txt"), "w", encoding="utf-8") as file:
+        file.write(f"Elapsed time to build blob: {elapsed_time}")
 
 
 def read(test_dir: str) -> None:
     setup(test_dir)
     blob_test_path, data_path = get_blob_paths(test_dir)
-    df_raw = pd.read_parquet(data_path)
+    df_raw = read_data(data_path)
 
     sbr = SyndiffixBlobReader(blob_name=test_dir, path_to_dir=blob_test_path, cache_df_in_memory=True, force=True)
 
