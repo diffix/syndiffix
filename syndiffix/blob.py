@@ -42,6 +42,21 @@ def _parquet_reader(file_path: Path) -> pd.DataFrame:
     except Exception as e:
         raise IOError(f"Failed to read Parquet file {file_path}: {e}") from e
 
+class BlobZipper:
+    def __init__(self, blob_name: str, path_to_dir: Path, path_to_blob_dir: Path) -> None:
+        self.suffix = '.sdxblob.zip'
+        self.blob_name = blob_name
+        self.path_to_dir = path_to_dir
+        self.path_to_blob_dir = path_to_blob_dir
+
+    def zip_blob(self) -> None:
+        zip_file_path = self.path_to_dir.joinpath(f"{self.blob_name}.sdxblob.zip")
+        shutil.make_archive(str(zip_file_path.with_suffix("")), "zip", str(self.path_to_blob_dir))
+
+    def unzip_blob(self) -> None:
+        zip_file_path = self.path_to_dir.joinpath(f"{self.blob_name}.sdxblob.zip")
+        shutil.unpack_archive(str(zip_file_path), str(self.path_to_blob_dir), "zip")
+
 
 class ClusterParams:
     def __init__(
@@ -127,6 +142,7 @@ class SyndiffixBlob(object):
         self.bucketization_params: BucketizationParams
 
         self._make_paths(path_to_dir)
+        self.bzip = BlobZipper(blob_name, self.path_to_dir, self.path_to_blob_dir)
 
     def _features_context(self, comb: tuple[int, ...], columns: tuple[str, ...], target_column: str) -> FeaturesContext:
         features_all = self.features[target_column]
@@ -200,15 +216,6 @@ class SyndiffixBlob(object):
 
     def _get_column_names_from_indices(self, comb: Union[list[ColumnId], tuple[ColumnId, ...]]) -> tuple[str, ...]:
         return tuple([self.col_names_all[i] for i in comb])
-
-    def _zip_blob(self) -> None:
-        zip_file_path = self.path_to_dir.joinpath(f"{self.blob_name}.zip")
-        shutil.make_archive(str(zip_file_path.with_suffix("")), "zip", str(self.path_to_blob_dir))
-
-    def _unzip_blob(self) -> None:
-        zip_file_path = self.path_to_dir.joinpath(f"{self.blob_name}.zip")
-        shutil.unpack_archive(str(zip_file_path), str(self.path_to_blob_dir), "zip")
-
 
 class SyndiffixBlobBuilder(SyndiffixBlob):
     def __init__(
@@ -304,7 +311,7 @@ class SyndiffixBlobBuilder(SyndiffixBlob):
             self._parquet_writer(df_3col, f"{self._data_filename(list(df_3col.columns))}.parquet")
             self._build_larger_tables(syn, comb, len(self.col_names_all) - 1)
         # zip up the blob
-        self._zip_blob()
+        self.bzip.zip_blob()
         shutil.rmtree(self.path_to_blob_dir)
 
     def _build_larger_tables(self, syn: Synthesizer, comb: tuple[int, ...], maxval: int) -> None:
@@ -474,7 +481,7 @@ class SyndiffixBlobReader(SyndiffixBlob):
         self.cache_df_in_memory = cache_df_in_memory
         self.original_column_order: list
         self.catalog = Catalog()
-        self._unzip_blob()
+        self.bzip.unzip_blob()
         self._read_cluster_params()
         # We overwrite the cluster parameters if they are passed in. Otherwise they
         # are set as in the blob
