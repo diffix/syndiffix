@@ -14,9 +14,9 @@ def test_shrink_matrix() -> None:
 
 
 def test_shrink_entropy_1dim() -> None:
-    entropy_1dim = np.array([0.1, 0.2, 0.3, 0.4, 0.5], dtype=np.float_)
+    entropy_1dim = np.array([0.1, 0.2, 0.3, 0.4, 0.5], dtype=np.float64)
     comb = (1, 3, 4)
-    expected_entropy_1dim = np.array([0.2, 0.4, 0.5], dtype=np.float_)
+    expected_entropy_1dim = np.array([0.2, 0.4, 0.5], dtype=np.float64)
     new_entropy_1dim = _shrink_entropy_1dim(entropy_1dim, comb)
     assert np.array_equal(
         new_entropy_1dim, expected_entropy_1dim

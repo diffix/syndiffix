@@ -64,7 +64,7 @@ class Forest:
         # Arrange data in a numpy array, applying the null mappings to missing values.
         # `DataFrame.fillna` doesn't seem to accept the fill values by index, must build dict.
         null_mappings_dict = dict(zip(data.columns, self.null_mappings))
-        self.data: npt.NDArray[np.float_] = data.fillna(null_mappings_dict, axis=0).to_numpy(np.float_)
+        self.data: npt.NDArray[np.float64] = data.fillna(null_mappings_dict, axis=0).to_numpy(np.float64)
 
         self._tree_cache: dict[Combination, Node] = {}
 

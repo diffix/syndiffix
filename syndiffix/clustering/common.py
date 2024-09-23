@@ -40,12 +40,12 @@ def microdata_row_to_row(microdata_row: MicrodataRow) -> Row:
     return tuple(value[MICRODATA_SYN_VALUE] for value in microdata_row)
 
 
-Entropy1Dim = npt.NDArray[np.float_]
+Entropy1Dim = npt.NDArray[np.float64]
 
 
 @dataclass(frozen=True)
 class ClusteringContext:
-    dependency_matrix: npt.NDArray[np.float_]
+    dependency_matrix: npt.NDArray[np.float64]
     entropy_1dim: Entropy1Dim
     total_dependence: float
     total_dependence_per_column: list[float]

@@ -54,14 +54,14 @@ class NoClustering(ClusteringStrategy):
             initial_cluster=[ColumnId(0)],
             derived_clusters=[(StitchOwner.SHARED, [], [ColumnId(i)]) for i in range(1, forest.dimensions)],
         )
-        return patch_clusters, np.zeros(forest.dimensions, np.float_)
+        return patch_clusters, np.zeros(forest.dimensions, np.float64)
 
 
 class SingleClustering(ClusteringStrategy):
     def build_clusters(self, forest: Forest) -> tuple[Clusters, Entropy1Dim]:
         # Build and return a cluster that includes everything, don't measure entropy.
         single_cluster = Clusters(initial_cluster=[ColumnId(i) for i in range(forest.dimensions)], derived_clusters=[])
-        return single_cluster, np.zeros(forest.dimensions, np.float_)
+        return single_cluster, np.zeros(forest.dimensions, np.float64)
 
 
 class DefaultClustering(ClusteringStrategy):

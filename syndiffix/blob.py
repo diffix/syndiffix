@@ -32,7 +32,7 @@ def _shrink_matrix(matrix: npt.NDArray, comb: tuple[int, ...]) -> npt.NDArray:
     return matrix[np.ix_(comb, comb)]
 
 
-def _shrink_entropy_1dim(entropy_1dim: npt.NDArray[np.float_], comb: tuple[int, ...]) -> Entropy1Dim:
+def _shrink_entropy_1dim(entropy_1dim: npt.NDArray[np.float64], comb: tuple[int, ...]) -> Entropy1Dim:
     return entropy_1dim[list(comb)]
 
 
