@@ -53,10 +53,90 @@ def get_combinations(lst: List[str], N: int) -> List[Tuple[str, ...]]:
     return all_combs
 
 
+import numpy as np
+import pandas as pd
+
+
+def measure(df_orig: pd.DataFrame, df_blob: pd.DataFrame, df_syn: pd.DataFrame):
+    # Make a copy of df_orig that has only the same columns as df_syn
+    df_orig = df_orig[df_syn.columns].copy()
+
+    # Determine column types
+    column_types = {}
+    for col in df_orig.columns:
+        if pd.api.types.is_float_dtype(df_orig[col]):
+            column_types[col] = "continuous"
+        elif pd.api.types.is_integer_dtype(df_orig[col]):
+            if df_orig[col].nunique() <= 9:
+                column_types[col] = "categorical"
+            else:
+                column_types[col] = "continuous"
+        elif pd.api.types.is_string_dtype(df_orig[col]):
+            column_types[col] = "categorical"
+        else:
+            raise ValueError(f"Unsupported column type for column {col}")
+
+    # Bin continuous columns
+    binned_dfs = []
+    for df in [df_orig, df_blob, df_syn]:
+        binned_df = df.copy()
+        for col, col_type in column_types.items():
+            if col_type == "continuous":
+                min_val = min(df_orig[col].min(), df_blob[col].min(), df_syn[col].min())
+                max_val = max(df_orig[col].max(), df_blob[col].max(), df_syn[col].max())
+                bins = np.linspace(min_val, max_val, 11)
+                binned_df[col] = pd.cut(df[col], bins=bins, include_lowest=True)
+        binned_dfs.append(binned_df)
+
+    binned_df_orig, binned_df_blob, binned_df_syn = binned_dfs
+
+    # Ensure categorical columns have the same categories
+    for col, col_type in column_types.items():
+        if col_type == "categorical":
+            categories = pd.Categorical(df_orig[col]).categories
+            binned_df_orig[col] = pd.Categorical(binned_df_orig[col], categories=categories)
+            binned_df_blob[col] = pd.Categorical(binned_df_blob[col], categories=categories)
+            binned_df_syn[col] = pd.Categorical(binned_df_syn[col], categories=categories)
+
+    # Compute row counts for all unique combinations of values using pd.crosstab
+    def compute_counts(df):
+        return pd.crosstab(index=[df[col] for col in df.columns], columns="count")
+
+    counts_orig = compute_counts(binned_df_orig)
+    counts_blob = compute_counts(binned_df_blob)
+    counts_syn = compute_counts(binned_df_syn)
+
+    # Align the counts DataFrames to ensure they have the same index
+    counts_blob = counts_blob.reindex(counts_orig.index, fill_value=0)
+    counts_syn = counts_syn.reindex(counts_orig.index, fill_value=0)
+
+    cols = list(df_orig.columns)
+    cols.sort()
+    print(cols)
+    if cols == ["CommHome", "CommToSch"]:
+        print(f"Counts orig:\n{counts_orig}")
+        print(f"Counts blob:\n{counts_blob}")
+
+    # Compute absolute differences
+    error_blob = (counts_orig["count"] - counts_blob["count"]).abs()
+    error_syn = (counts_orig["count"] - counts_syn["count"]).abs()
+
+    # Compute average errors
+    avg_error_blob = error_blob.mean()
+    avg_error_syn = error_syn.mean()
+
+    # Compute average errors
+    max_error_blob = error_blob.max()
+    max_error_syn = error_syn.max()
+
+    return avg_error_blob, avg_error_syn, max_error_blob, max_error_syn
+
+
 def do_check(columns: List[str], sbr: SyndiffixBlobReader, df_raw: pd.DataFrame, with_target: bool = False) -> None:
     target = None
     if with_target and len(columns) > 1:
         target = columns[random.randint(0, len(columns) - 1)]
+    print("----------------------------------------")
     print(f"Do read blob with columns={columns} and target {target}")
     df_blob = sbr.read(columns=columns, target_column=target)
     if list(df_blob.columns) != columns:
@@ -66,6 +146,12 @@ def do_check(columns: List[str], sbr: SyndiffixBlobReader, df_raw: pd.DataFrame,
         quit()
     print("Do Synthesizer sample")
     df_syn = Synthesizer(df_raw[columns], target_column=target).sample()
+    if len(columns) <= 3:
+        avg_error_blob, avg_error_syn, max_error_blob, max_error_syn = measure(df_raw, df_blob, df_syn)
+        print(f"Average error for blob/syn: {avg_error_blob}, {avg_error_syn}")
+        print(f"Max error for blob/syn: {max_error_blob}, {max_error_syn}")
+        return
+
     dfs: List[pd.DataFrame] = [df_raw, df_blob, df_syn]
     df_names = ["df_raw", "df_blob", "df_syn"]
     for column in columns:
@@ -117,7 +203,9 @@ def read_data(data_path: Path) -> pd.DataFrame:
         raise FileNotFoundError(f"The file at {str(data_path)} does not exist.")
 
     if data_path.suffix == ".csv":
-        return pd.read_csv(data_path)
+        df = pd.read_csv(data_path)
+        df = df.loc[:, ~df.columns.str.contains("^Unnamed")]
+        return df
     elif data_path.suffix == ".parquet":
         return pd.read_parquet(data_path)
     else:
@@ -153,8 +241,18 @@ def read(test_dir: str) -> None:
     setup(test_dir)
     blob_test_path, data_path = get_blob_paths(test_dir)
     df_raw = read_data(data_path)
+    print(f"Data path = {data_path}")
+    quit()
 
     sbr = SyndiffixBlobReader(blob_name=test_dir, path_to_dir=blob_test_path, cache_df_in_memory=True, force=True)
+
+    # Test read for single-column tables
+    for column in df_raw.columns:
+        do_check([column], sbr, df_raw)
+
+    # Test read 2-column tables
+    for comb in list(itertools.combinations(df_raw.columns, 2)):
+        do_check(list(comb), sbr, df_raw)
 
     # Test read for a random set of tables that require stitching
     all_combinations = list(sbr.catalog.keys())
@@ -166,10 +264,6 @@ def read(test_dir: str) -> None:
         do_check(list(comb), sbr, df_raw, with_target=False)
 
     sbr = SyndiffixBlobReader(blob_name=test_dir, path_to_dir=blob_test_path, cache_df_in_memory=False, force=True)
-
-    # Test read for single-column tables
-    for column in df_raw.columns:
-        do_check([column], sbr, df_raw)
 
     # Test read for a random set of tables that are definitely in the blob
     for _ in range(20):

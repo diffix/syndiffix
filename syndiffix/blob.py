@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from enum import Enum
 from itertools import combinations
 from pathlib import Path
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, List, Optional, Tuple, TypedDict, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -42,9 +42,31 @@ def _parquet_reader(file_path: Path) -> pd.DataFrame:
     except Exception as e:
         raise IOError(f"Failed to read Parquet file {file_path}: {e}") from e
 
+
+class StitchDict(TypedDict):
+    left: List[str]
+    right: List[str]
+    owner: str
+
+
+class StitchRecord:
+    def __init__(self) -> None:
+        self._stitch_record: List[StitchDict] = []
+
+    def add(self, left: list[str], right: list[str], owner: str) -> None:
+        stitch_entry: StitchDict = {"left": left, "right": right, "owner": owner}
+        self._stitch_record.append(stitch_entry)
+
+    def read(self) -> List[StitchDict]:
+        return self._stitch_record
+
+    def reset(self) -> None:
+        self._stitch_record = []
+
+
 class BlobZipper:
     def __init__(self, blob_name: str, path_to_dir: Path, path_to_blob_dir: Path) -> None:
-        self.suffix = '.sdxblob.zip'
+        self.suffix = ".sdxblob.zip"
         self.blob_name = blob_name
         self.path_to_dir = path_to_dir
         self.path_to_blob_dir = path_to_blob_dir
@@ -66,12 +88,14 @@ class ClusterParams:
         ml_max_weight: float = 15.0,
         merge_threshold: float = 0.1,
         solver_alpha: float = 1e-2,
+        max_cluster_size: int = 10,  # This is effectively infinite
     ):
         self.sample_size = sample_size
         self.default_max_weight = default_max_weight
         self.ml_max_weight = ml_max_weight
         self.merge_threshold = merge_threshold
         self.solver_alpha = solver_alpha
+        self.max_cluster_size = max_cluster_size
 
 
 @dataclass(frozen=True)
@@ -149,9 +173,7 @@ class SyndiffixBlob(object):
         main_features = []
         # This algorithm is a bit funky, because features_all was computed from the complete table,
         # while here we are trying to interpret it relative to a partial table. This needs more thought,
-        # but for now we just 'features' rather than 'k_features' in the hope that this is somewhat
-        # more robust
-        for feature in features_all.features:
+        for feature in features_all.k_features:
             if feature in columns:
                 feature_id = ColumnId(columns.index(feature))
                 main_features.append(feature_id)
@@ -189,7 +211,8 @@ class SyndiffixBlob(object):
         self.blob_dir_name = f".sdx_blob_{self.blob_name}"
         self.path_to_blob_dir = self.path_to_dir.joinpath(self.blob_dir_name)
         if self.force:
-            shutil.rmtree(self.path_to_blob_dir, ignore_errors=True)
+            if self.path_to_blob_dir.exists():
+                shutil.rmtree(self.path_to_blob_dir, ignore_errors=False)
         if self.path_to_blob_dir.exists():
             raise FileExistsError(f"Something already exists at temporary working directory {self.path_to_blob_dir}.")
         try:
@@ -217,6 +240,7 @@ class SyndiffixBlob(object):
     def _get_column_names_from_indices(self, comb: Union[list[ColumnId], tuple[ColumnId, ...]]) -> tuple[str, ...]:
         return tuple([self.col_names_all[i] for i in comb])
 
+
 class SyndiffixBlobBuilder(SyndiffixBlob):
     def __init__(
         self,
@@ -228,6 +252,7 @@ class SyndiffixBlobBuilder(SyndiffixBlob):
         ml_max_weight: Optional[float] = None,
         merge_threshold: Optional[float] = None,
         solver_alpha: Optional[float] = None,
+        max_cluster_size: Optional[int] = None,
     ) -> None:
         super().__init__(blob_name, path_to_dir, force=force)  # Call the base class initializer
         self.write_version: int = 1
@@ -242,6 +267,8 @@ class SyndiffixBlobBuilder(SyndiffixBlob):
             self.cluster_params.merge_threshold = merge_threshold
         if solver_alpha is not None:
             self.cluster_params.solver_alpha = solver_alpha
+        if max_cluster_size is not None:
+            self.cluster_params.max_cluster_size = max_cluster_size
 
         self.df_raw: pd.DataFrame
         self.pids: Optional[pd.DataFrame]
@@ -322,6 +349,8 @@ class SyndiffixBlobBuilder(SyndiffixBlob):
         for i in range(next_start, maxval + 1):
             build_table = False
             new_comb = comb_id + (ColumnId(i),)
+            if len(new_comb) > self.cluster_params.max_cluster_size:
+                return
             context = self._clustering_context(new_comb)
             # Test if clustering occurs for a non-targeted set of columns
             clusters = _do_solve(
@@ -408,7 +437,7 @@ class SyndiffixBlobBuilder(SyndiffixBlob):
     def _parquet_writer(self, column_df: pd.DataFrame, filename: str) -> None:
         file_path = self.path_to_blob_dir.joinpath(filename)
         try:
-            column_df.to_parquet(file_path)
+            column_df.to_parquet(file_path, index=False)
         except Exception as e:
             raise IOError(f"Failed to write to Parquet file {file_path}: {e}") from e
 
@@ -500,6 +529,7 @@ class SyndiffixBlobReader(SyndiffixBlob):
         self.context: ClusteringContext
         self.anonymization_params: AnonymizationParams
         self.bucketization_params: BucketizationParams
+        self._stitch_record = StitchRecord()
 
         self._read_version()
         self._read_measures()
@@ -509,7 +539,11 @@ class SyndiffixBlobReader(SyndiffixBlob):
         self._read_features()
         self._load_catalog()
 
+    def stitch_record(self) -> List[StitchDict]:
+        return self._stitch_record.read()
+
     def read(self, columns: list[str], target_column: Optional[str] = None) -> pd.DataFrame:
+        self._stitch_record.reset()
         columns_copy = columns.copy()
         return self._read(columns_copy, target_column)
 
@@ -560,14 +594,19 @@ class SyndiffixBlobReader(SyndiffixBlob):
             if len(stitch_columns) > 0:
                 df_stitch = self._read_catalog(stitch_columns)
                 # coerce df_left and df_right to have better quality stitch columns
-                df_left = stitch(df_left=df_stitch, df_right=df_left, shared=False)
-                df_right = stitch(df_left=df_stitch, df_right=df_right, shared=False)
-            df_left = stitch(df_left=df_left, df_right=df_right, shared=True)
+                df_left = self._stitch(df_left=df_stitch, df_right=df_left, shared=False)
+                df_right = self._stitch(df_left=df_stitch, df_right=df_right, shared=False)
+            df_left = self._stitch(df_left=df_left, df_right=df_right, shared=True)
         return self._original_order(df_left)
 
+    def _stitch(self, df_left: pd.DataFrame, df_right: pd.DataFrame, shared: bool) -> pd.DataFrame:
+        owner = "shared" if shared else "left"
+        self._stitch_record.add(list(df_left.columns), list(df_right.columns), owner)
+        return stitch(df_left=df_left, df_right=df_right, shared=shared)
+
     def _remap_clusters(self, clusters: Clusters, comb: tuple[int, ...]) -> None:
-        for i in range(len(clusters.initial_cluster)):
-            clusters.initial_cluster[i] = ColumnId(comb[clusters.initial_cluster[i]])
+        for i, value in enumerate(clusters.initial_cluster):
+            clusters.initial_cluster[i] = ColumnId(comb[value])
         for derived_cluster in clusters.derived_clusters:
             for i in range(len(derived_cluster[1])):
                 derived_cluster[1][i] = ColumnId(comb[derived_cluster[1][i]])
@@ -598,7 +637,7 @@ class SyndiffixBlobReader(SyndiffixBlob):
         df_left = self._read_catalog(left_columns)
         right_columns = remaining_columns[midpoint:] + [stitch_column]
         df_right = self._read_catalog(right_columns)
-        return stitch(df_left=df_left, df_right=df_right, shared=True)
+        return self._stitch(df_left=df_left, df_right=df_right, shared=True)
 
     def _load_catalog(self) -> None:
         for file_path in self.path_to_blob_dir.iterdir():
