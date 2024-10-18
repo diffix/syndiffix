@@ -103,6 +103,8 @@ The [time-series notebook](docs/time-series.ipynb) gives examples of how to obta
 
 A step-by-step description of the algorithm can be found [here](docs/algorithm.md).
 
+There is an API to the stitching function. It is primarily for testing and development purposes. A description can be found [here](docs/stitching-api.md).
+
 A paper describing the design of **SynDiffix**, its performance, and its anonymity properties can be found
 [here on ArXiv](https://arxiv.org/abs/2311.09628).
 
