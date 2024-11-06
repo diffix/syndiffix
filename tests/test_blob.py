@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 
 from syndiffix.blob import _shrink_entropy_1dim, _shrink_matrix
 
