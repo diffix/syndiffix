@@ -53,10 +53,6 @@ def get_combinations(lst: List[str], N: int) -> List[Tuple[str, ...]]:
     return all_combs
 
 
-import numpy as np
-import pandas as pd
-
-
 def measure(df_orig: pd.DataFrame, df_blob: pd.DataFrame, df_syn: pd.DataFrame):
     # Make a copy of df_orig that has only the same columns as df_syn
     df_orig = df_orig[df_syn.columns].copy()
