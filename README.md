@@ -173,8 +173,7 @@ A step-by-step description of the algorithm can be found [here](docs/algorithm.m
 
 There is an API to the stitching function. It is primarily for testing and development purposes. A description can be found [here](docs/stitching-api.md).
 
-A paper describing the design of SynDiffix, its performance, and its anonymity properties can be found
-[here on ArXiv](https://arxiv.org/abs/2311.09628).
+A paper describing the design of SynDiffix, its performance, and its anonymity properties can be found [here on ArXiv](https://arxiv.org/abs/2311.09628).
 
 A per-dimension range is internally called an interval (and handled by the `Interval` class), in order to avoid
 potential name clashes with the native Python `range` API.
