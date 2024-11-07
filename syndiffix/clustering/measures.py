@@ -30,7 +30,7 @@ class DependenceMeasure:
 
 @dataclass(frozen=True)
 class DependenceMeasures:
-    dependency_matrix: npt.NDArray[np.float_]
+    dependency_matrix: npt.NDArray[np.float64]
     entropy_1dim: Entropy1Dim
 
 
