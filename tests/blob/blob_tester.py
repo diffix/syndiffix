@@ -53,7 +53,7 @@ def get_combinations(lst: List[str], N: int) -> List[Tuple[str, ...]]:
     return all_combs
 
 
-def measure(df_orig: pd.DataFrame, df_blob: pd.DataFrame, df_syn: pd.DataFrame):
+def measure(df_orig: pd.DataFrame, df_blob: pd.DataFrame, df_syn: pd.DataFrame) -> Tuple[float, float, float, float]:
     # Make a copy of df_orig that has only the same columns as df_syn
     df_orig = df_orig[df_syn.columns].copy()
 
@@ -95,7 +95,7 @@ def measure(df_orig: pd.DataFrame, df_blob: pd.DataFrame, df_syn: pd.DataFrame):
             binned_df_syn[col] = pd.Categorical(binned_df_syn[col], categories=categories)
 
     # Compute row counts for all unique combinations of values using pd.crosstab
-    def compute_counts(df):
+    def compute_counts(df) -> pd.DataFrame:
         return pd.crosstab(index=[df[col] for col in df.columns], columns="count")
 
     counts_orig = compute_counts(binned_df_orig)
