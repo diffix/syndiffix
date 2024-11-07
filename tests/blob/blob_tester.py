@@ -95,7 +95,7 @@ def measure(df_orig: pd.DataFrame, df_blob: pd.DataFrame, df_syn: pd.DataFrame) 
             binned_df_syn[col] = pd.Categorical(binned_df_syn[col], categories=categories)
 
     # Compute row counts for all unique combinations of values using pd.crosstab
-    def compute_counts(df) -> pd.DataFrame:
+    def compute_counts(df: pd.DataFrame) -> pd.DataFrame:
         return pd.crosstab(index=[df[col] for col in df.columns], columns="count")
 
     counts_orig = compute_counts(binned_df_orig)
