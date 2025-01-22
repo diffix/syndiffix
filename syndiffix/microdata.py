@@ -190,7 +190,7 @@ def get_convertor(df: pd.DataFrame, column: str) -> DataConvertor:
 
 def _apply_convertor(value: Value, convertor: DataConvertor) -> float:
     if pd.isna(value):
-        return np.NaN
+        return np.nan
     else:
         return convertor.to_float(value)
 

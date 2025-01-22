@@ -94,11 +94,11 @@ a,b,c,d,e,f,g,h,i
             "b": [1.5, 1.5],
             "c": [1e-7, 1e-7],
             "d": [0.0, 1.0],
-            "e": [np.NaN, 1.5],
-            "f": [np.NaN, 0.0],
-            "g": [np.NaN, np.NaN],
-            "h": [86400.0, np.NaN],
-            "i": [np.NaN, 1.5],
+            "e": [np.nan, 1.5],
+            "f": [np.nan, 0.0],
+            "g": [np.nan, np.nan],
+            "h": [86400.0, np.nan],
+            "i": [np.nan, 1.5],
         }
     )
     assert results.equals(expected)
