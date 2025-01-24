@@ -197,7 +197,8 @@ def get_blob_paths(test_dir: str) -> Tuple[Path, Path]:
 
 def read_data(data_path: Path) -> pd.DataFrame:
     if not data_path.exists():
-        raise FileNotFoundError(f"The file at {str(data_path)} does not exist.")
+        err_str = f"The file at {str(data_path)} does not exist."
+        raise FileNotFoundError(err_str)
 
     if data_path.suffix == ".csv":
         df = pd.read_csv(data_path)
@@ -239,8 +240,8 @@ def read(test_dir: str) -> None:
     blob_test_path, data_path = get_blob_paths(test_dir)
     df_raw = read_data(data_path)
     print(f"Data path = {data_path}")
-    quit()
 
+    print(f"blob_name = {test_dir}, path_to_dir = {blob_test_path}")
     sbr = SyndiffixBlobReader(blob_name=test_dir, path_to_dir=blob_test_path, cache_df_in_memory=True, force=True)
 
     # Test read for single-column tables

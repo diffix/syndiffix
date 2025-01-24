@@ -228,6 +228,9 @@ class SyndiffixBlob(object):
             for col in columns:
                 # substitute whitespace with underscore
                 col = col.replace(" ", "_")
+                illegal_chars = ['<','>',':','"','/','\\','|','?','*',]
+                for c in illegal_chars:
+                    col = col.replace(c, "_")
                 name += col[:chars_per_col] + "_"
             # strip off the last underscore
             name = name[:-1]
