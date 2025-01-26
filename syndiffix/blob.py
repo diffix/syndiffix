@@ -2,6 +2,7 @@ import json
 import random
 import shutil
 import string
+import zipfile
 from dataclasses import dataclass
 from enum import Enum
 from itertools import combinations
@@ -75,9 +76,14 @@ class BlobZipper:
         zip_file_path = self.path_to_dir.joinpath(f"{self.blob_name}.sdxblob.zip")
         shutil.make_archive(str(zip_file_path.with_suffix("")), "zip", str(self.path_to_blob_dir))
 
-    def unzip_blob(self) -> None:
+    def unzip_blob1(self) -> None:
         zip_file_path = self.path_to_dir.joinpath(f"{self.blob_name}.sdxblob.zip")
         shutil.unpack_archive(str(zip_file_path), str(self.path_to_blob_dir), "zip")
+
+    def unzip_blob(self) -> None:
+        zip_file_path = self.path_to_dir.joinpath(f"{self.blob_name}.sdxblob.zip")
+        with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
+            zip_ref.extractall(self.path_to_blob_dir)
 
 
 class ClusterParams:
