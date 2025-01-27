@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 from pandas.api.types import (
     is_bool_dtype,
-    is_datetime64_any_dtype,
+    is_datetime64_dtype,
     is_float_dtype,
     is_integer_dtype,
     is_string_dtype,
@@ -179,7 +179,7 @@ def get_convertor(df: pd.DataFrame, column: str) -> DataConvertor:
         return RealConvertor()
     elif is_bool_dtype(dtype):
         return BooleanConvertor()
-    elif is_datetime64_any_dtype(dtype):
+    elif is_datetime64_dtype(dtype):
         return TimestampConvertor()
     elif is_string_dtype(dtype):
         # Note above is `True` for `object` dtype, but `StringConvertor` will assert values are `str`.
