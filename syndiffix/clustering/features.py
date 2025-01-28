@@ -117,6 +117,12 @@ def _preprocess(
 
     threshold = VarianceThreshold(0.00001)
     threshold.set_output(transform="pandas")
+    try:
+        df_filtered = threshold.fit_transform(df_preprocessed)
+    except ValueError:
+        # This should be a rare event. It happens when none of the features have
+        # variance above the threshold.
+        df_filtered = df_preprocessed
 
     df_filtered = threshold.fit_transform(df_preprocessed)
 
