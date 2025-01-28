@@ -132,6 +132,8 @@ class StringConvertor(DataConvertor):
         min_value = int(interval.min)
         # max_value is inclusive
         max_value = min(int(interval.max) - 1, len(self.value_map) - 1)
+        # The latter term in the above line can 0 (not sure why TODO: check)
+        max_value = max(min_value, max_value)
         value = rng.randint(min_value, max_value)
         if value in self.safe_values:
             return (self.value_map[value], float(value))
