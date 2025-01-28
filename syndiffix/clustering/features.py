@@ -124,8 +124,6 @@ def _preprocess(
         # variance above the threshold.
         df_filtered = df_preprocessed
 
-    df_filtered = threshold.fit_transform(df_preprocessed)
-
     return df_filtered, inverse_lookup
 
 
