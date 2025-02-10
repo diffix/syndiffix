@@ -207,6 +207,12 @@ class SyndiffixBlob(object):
             main_column=None,
         )
 
+    def _remove_blob_dir_files(self) -> None:
+        if self.path_to_blob_dir.exists():
+            for item in self.path_to_blob_dir.iterdir():
+                if item.is_file():
+                    item.unlink()  # Remove the file
+
     def _make_paths(self, path_to_dir: Optional[Union[str, Path]]) -> None:
         if path_to_dir is None:
             self.path_to_dir = Path.cwd()
@@ -217,14 +223,8 @@ class SyndiffixBlob(object):
         self.blob_dir_name = f".sdx_blob_{self.blob_name}"
         self.path_to_blob_dir = self.path_to_dir.joinpath(self.blob_dir_name)
         if self.force:
-            if self.path_to_blob_dir.exists():
-                shutil.rmtree(self.path_to_blob_dir, ignore_errors=False)
-        if self.path_to_blob_dir.exists():
-            raise FileExistsError(f"Something already exists at temporary working directory {self.path_to_blob_dir}.")
-        try:
-            self.path_to_blob_dir.mkdir(parents=True, exist_ok=False)
-        except Exception as e:
-            raise OSError(f"Failed to create directory {self.path_to_blob_dir}: {e}") from e
+            self._remove_blob_dir_files()
+        self.path_to_blob_dir.mkdir(parents=True, exist_ok=True)
 
     def _data_filename(self, columns: list[str]) -> str:
         columns.sort()
@@ -349,7 +349,7 @@ class SyndiffixBlobBuilder(SyndiffixBlob):
                 self._build_larger_tables(syn, comb, len(self.col_names_all) - 1)
         # zip up the blob
         self.bzip.zip_blob()
-        shutil.rmtree(self.path_to_blob_dir)
+        self._remove_blob_dir_files()
 
     def _build_larger_tables(self, syn: Synthesizer, comb: tuple[int, ...], maxval: int) -> None:
         comb_id: tuple[ColumnId, ...] = tuple(ColumnId(val) for val in comb)
