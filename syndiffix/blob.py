@@ -76,14 +76,11 @@ class BlobZipper:
         zip_file_path = self.path_to_dir.joinpath(f"{self.blob_name}.sdxblob.zip")
         shutil.make_archive(str(zip_file_path.with_suffix("")), "zip", str(self.path_to_blob_dir))
 
-    def unzip_blob1(self) -> None:
-        zip_file_path = self.path_to_dir.joinpath(f"{self.blob_name}.sdxblob.zip")
-        shutil.unpack_archive(str(zip_file_path), str(self.path_to_blob_dir), "zip")
-
     def unzip_blob(self) -> None:
         zip_file_path = self.path_to_dir.joinpath(f"{self.blob_name}.sdxblob.zip")
-        with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
-            zip_ref.extractall(self.path_to_blob_dir)
+        if not zip_file_path.exists():
+            with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
+                zip_ref.extractall(self.path_to_blob_dir)
 
 
 class ClusterParams:
@@ -207,12 +204,6 @@ class SyndiffixBlob(object):
             main_column=None,
         )
 
-    def _remove_blob_dir_files(self) -> None:
-        if self.path_to_blob_dir.exists():
-            for item in self.path_to_blob_dir.iterdir():
-                if item.is_file():
-                    item.unlink()  # Remove the file
-
     def _make_paths(self, path_to_dir: Optional[Union[str, Path]]) -> None:
         if path_to_dir is None:
             self.path_to_dir = Path.cwd()
@@ -222,8 +213,6 @@ class SyndiffixBlob(object):
             raise NotADirectoryError(f"The path {self.path_to_dir} is not an existing directory.")
         self.blob_dir_name = f".sdx_blob_{self.blob_name}"
         self.path_to_blob_dir = self.path_to_dir.joinpath(self.blob_dir_name)
-        if self.force:
-            self._remove_blob_dir_files()
         self.path_to_blob_dir.mkdir(parents=True, exist_ok=True)
 
     def _data_filename(self, columns: list[str]) -> str:
@@ -349,7 +338,6 @@ class SyndiffixBlobBuilder(SyndiffixBlob):
                 self._build_larger_tables(syn, comb, len(self.col_names_all) - 1)
         # zip up the blob
         self.bzip.zip_blob()
-        self._remove_blob_dir_files()
 
     def _build_larger_tables(self, syn: Synthesizer, comb: tuple[int, ...], maxval: int) -> None:
         comb_id: tuple[ColumnId, ...] = tuple(ColumnId(val) for val in comb)
