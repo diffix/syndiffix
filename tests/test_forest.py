@@ -17,7 +17,7 @@ def test_column_type_check() -> None:
 
 def test_null_mappings() -> None:
     forest = create_forest(
-        DataFrame({"data1": [-2.0, 0.0, -1.0, None, np.NaN], "data2": [0.0, 0.0, 6.0, None, np.NaN]})
+        DataFrame({"data1": [-2.0, 0.0, -1.0, None, np.nan], "data2": [0.0, 0.0, 6.0, None, np.nan]})
     )
 
     assert forest.null_mappings == (-4.0, 12.0)
@@ -26,7 +26,7 @@ def test_null_mappings() -> None:
 
 
 def test_null_mappings_all_nan_column() -> None:
-    forest = create_forest(DataFrame({"data": [np.NaN, np.NaN]}))
+    forest = create_forest(DataFrame({"data": [np.nan, np.nan]}))
 
     assert forest.null_mappings == (1.0,)
     assert forest.data[:, 0].tolist() == [1.0, 1.0]

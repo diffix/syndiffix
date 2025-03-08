@@ -76,6 +76,9 @@ def _random_encoder(X: pd.DataFrame) -> pd.DataFrame:
 def _preprocess(
     df: pd.DataFrame, one_hot_encode: bool = True, variance_threshold: bool = True
 ) -> tuple[pd.DataFrame, dict[str, str]]:
+    # This conversion needed because the blob code works with the original data
+    for col in df.select_dtypes(include=["datetime64"]).columns:
+        df[col] = df[col].astype(np.int64) // 10**9  # Convert to Unix timestamp
     text_features, continuous_features, categorical_features = _get_feature_types(df)
     ordinal_features = []
 
@@ -114,8 +117,12 @@ def _preprocess(
 
     threshold = VarianceThreshold(0.00001)
     threshold.set_output(transform="pandas")
-
-    df_filtered = threshold.fit_transform(df_preprocessed)
+    try:
+        df_filtered = threshold.fit_transform(df_preprocessed)
+    except ValueError:
+        # This should be a rare event. It happens when none of the features have
+        # variance above the threshold.
+        df_filtered = df_preprocessed
 
     return df_filtered, inverse_lookup
 

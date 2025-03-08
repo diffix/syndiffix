@@ -2,6 +2,7 @@ import json
 import random
 import shutil
 import string
+import zipfile
 from dataclasses import dataclass
 from enum import Enum
 from itertools import combinations
@@ -77,7 +78,18 @@ class BlobZipper:
 
     def unzip_blob(self) -> None:
         zip_file_path = self.path_to_dir.joinpath(f"{self.blob_name}.sdxblob.zip")
-        shutil.unpack_archive(str(zip_file_path), str(self.path_to_blob_dir), "zip")
+        if zip_file_path.exists():
+            try:
+                with zipfile.ZipFile(zip_file_path, "r") as zip_ref:
+                    zip_ref.extractall(self.path_to_blob_dir)
+            except zipfile.BadZipFile:
+                print(f"Error: The file {zip_file_path} is not a valid ZIP file.")
+            except zipfile.LargeZipFile:
+                print(f"Error: The file {zip_file_path} requires ZIP64 functionality but it is not enabled.")
+            except Exception as e:
+                print(f"An unexpected error occurred while extracting {zip_file_path}: {e}")
+        else:
+            raise FileNotFoundError(f"Zip file {zip_file_path} does not exist.")
 
 
 class ClusterParams:
@@ -210,15 +222,7 @@ class SyndiffixBlob(object):
             raise NotADirectoryError(f"The path {self.path_to_dir} is not an existing directory.")
         self.blob_dir_name = f".sdx_blob_{self.blob_name}"
         self.path_to_blob_dir = self.path_to_dir.joinpath(self.blob_dir_name)
-        if self.force:
-            if self.path_to_blob_dir.exists():
-                shutil.rmtree(self.path_to_blob_dir, ignore_errors=False)
-        if self.path_to_blob_dir.exists():
-            raise FileExistsError(f"Something already exists at temporary working directory {self.path_to_blob_dir}.")
-        try:
-            self.path_to_blob_dir.mkdir(parents=True, exist_ok=False)
-        except Exception as e:
-            raise OSError(f"Failed to create directory {self.path_to_blob_dir}: {e}") from e
+        self.path_to_blob_dir.mkdir(parents=True, exist_ok=True)
 
     def _data_filename(self, columns: list[str]) -> str:
         columns.sort()
@@ -228,6 +232,19 @@ class SyndiffixBlob(object):
             for col in columns:
                 # substitute whitespace with underscore
                 col = col.replace(" ", "_")
+                illegal_chars = [
+                    "<",
+                    ">",
+                    ":",
+                    '"',
+                    "/",
+                    "\\",
+                    "|",
+                    "?",
+                    "*",
+                ]
+                for c in illegal_chars:
+                    col = col.replace(c, "_")
                 name += col[:chars_per_col] + "_"
             # strip off the last underscore
             name = name[:-1]
@@ -326,20 +343,20 @@ class SyndiffixBlobBuilder(SyndiffixBlob):
         # measure_all gives us the pairwise dependence measures and the 1dim entropy measures
         self.measures = measure_all(syn.forest)
         self._write_measures()
-        # Build 3-dim and larger tables, so long as no clusters are formed
-        for comb in combinations(range(len(self.col_names_all)), 3):
-            # By forcing the clusters to be two columns only, we trick syn.smaple() into
-            # building exactly the 2dim table
-            syn.clusters = Clusters(
-                initial_cluster=[ColumnId(comb[0]), ColumnId(comb[1]), ColumnId(comb[2])],
-                derived_clusters=[],
-            )
-            df_3col = syn.sample()
-            self._parquet_writer(df_3col, f"{self._data_filename(list(df_3col.columns))}.parquet")
-            self._build_larger_tables(syn, comb, len(self.col_names_all) - 1)
+        if self.cluster_params.max_cluster_size > 2:
+            # Build 3-dim and larger tables, so long as no clusters are formed
+            for comb in combinations(range(len(self.col_names_all)), 3):
+                # By forcing the clusters to be two columns only, we trick syn.smaple() into
+                # building exactly the 2dim table
+                syn.clusters = Clusters(
+                    initial_cluster=[ColumnId(comb[0]), ColumnId(comb[1]), ColumnId(comb[2])],
+                    derived_clusters=[],
+                )
+                df_3col = syn.sample()
+                self._parquet_writer(df_3col, f"{self._data_filename(list(df_3col.columns))}.parquet")
+                self._build_larger_tables(syn, comb, len(self.col_names_all) - 1)
         # zip up the blob
         self.bzip.zip_blob()
-        shutil.rmtree(self.path_to_blob_dir)
 
     def _build_larger_tables(self, syn: Synthesizer, comb: tuple[int, ...], maxval: int) -> None:
         comb_id: tuple[ColumnId, ...] = tuple(ColumnId(val) for val in comb)
@@ -459,6 +476,7 @@ class SyndiffixBlobBuilder(SyndiffixBlob):
             "ml_max_weight": self.cluster_params.ml_max_weight,
             "merge_threshold": self.cluster_params.merge_threshold,
             "solver_alpha": self.cluster_params.solver_alpha,
+            "max_cluster_size": self.cluster_params.max_cluster_size,
         }
         self._json_writer(cp, BlobFiles.CLUSTER_PARAMS.value)
 
@@ -554,6 +572,9 @@ class SyndiffixBlobReader(SyndiffixBlob):
                 raise ValueError(f"Invalid columns: {', '.join(missing_columns)}")
 
         _check_columns_exist(columns, self.col_names_all)
+        # Check for duplicate column names
+        if len(set(columns)) != len(columns):
+            raise ValueError("Duplicate column names")
         self.original_column_order = columns.copy()
         if target_column is not None and target_column not in self.col_names_all:
             raise ValueError(f"Target column '{target_column}' is not a valid column.")
