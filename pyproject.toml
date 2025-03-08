@@ -44,6 +44,7 @@ flake8 = "^6.1.0"
 pytest = "^7.4.0"
 pandas-stubs = "^2.1.1"
 isort = "^5.12.0"
+types-psutil = "^7.0.0.20250218"
 
 [build-system]
 requires = ["poetry-core"]

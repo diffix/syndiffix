@@ -257,17 +257,17 @@ def read(test_dir: str) -> None:
     max_length = max([len(t) for t in all_combinations])
     big_combinations = get_combinations(list(df_raw.columns), max_length)
     for _ in range(20):
-        comb = random.choice(big_combinations)
-        do_check(list(comb), sbr, df_raw, with_target=True)
-        do_check(list(comb), sbr, df_raw, with_target=False)
+        comb1: Tuple[str, ...] = random.choice(big_combinations)
+        do_check(list(comb1), sbr, df_raw, with_target=True)
+        do_check(list(comb1), sbr, df_raw, with_target=False)
 
     sbr = SyndiffixBlobReader(blob_name=test_dir, path_to_dir=blob_test_path, cache_df_in_memory=False, force=True)
 
     # Test read for a random set of tables that are definitely in the blob
     for _ in range(20):
-        comb = random.choice(all_combinations)
-        do_check(list(comb), sbr, df_raw, with_target=True)
-        do_check(list(comb), sbr, df_raw, with_target=False)
+        comb2: Tuple[str, ...] = random.choice(big_combinations)
+        do_check(list(comb2), sbr, df_raw, with_target=True)
+        do_check(list(comb2), sbr, df_raw, with_target=False)
 
 
 def main() -> None:
