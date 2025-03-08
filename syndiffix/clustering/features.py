@@ -77,7 +77,7 @@ def _preprocess(
     df: pd.DataFrame, one_hot_encode: bool = True, variance_threshold: bool = True
 ) -> tuple[pd.DataFrame, dict[str, str]]:
     # This conversion needed because the blob code works with the original data
-    for col in df.select_dtypes(include=['datetime64']).columns:
+    for col in df.select_dtypes(include=["datetime64"]).columns:
         df[col] = df[col].astype(np.int64) // 10**9  # Convert to Unix timestamp
     text_features, continuous_features, categorical_features = _get_feature_types(df)
     ordinal_features = []

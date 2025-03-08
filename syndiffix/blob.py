@@ -78,9 +78,18 @@ class BlobZipper:
 
     def unzip_blob(self) -> None:
         zip_file_path = self.path_to_dir.joinpath(f"{self.blob_name}.sdxblob.zip")
-        if not zip_file_path.exists():
-            with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
-                zip_ref.extractall(self.path_to_blob_dir)
+        if zip_file_path.exists():
+            try:
+                with zipfile.ZipFile(zip_file_path, "r") as zip_ref:
+                    zip_ref.extractall(self.path_to_blob_dir)
+            except zipfile.BadZipFile:
+                print(f"Error: The file {zip_file_path} is not a valid ZIP file.")
+            except zipfile.LargeZipFile:
+                print(f"Error: The file {zip_file_path} requires ZIP64 functionality but it is not enabled.")
+            except Exception as e:
+                print(f"An unexpected error occurred while extracting {zip_file_path}: {e}")
+        else:
+            raise FileNotFoundError(f"Zip file {zip_file_path} does not exist.")
 
 
 class ClusterParams:
@@ -223,7 +232,17 @@ class SyndiffixBlob(object):
             for col in columns:
                 # substitute whitespace with underscore
                 col = col.replace(" ", "_")
-                illegal_chars = ['<','>',':','"','/','\\','|','?','*',]
+                illegal_chars = [
+                    "<",
+                    ">",
+                    ":",
+                    '"',
+                    "/",
+                    "\\",
+                    "|",
+                    "?",
+                    "*",
+                ]
                 for c in illegal_chars:
                     col = col.replace(c, "_")
                 name += col[:chars_per_col] + "_"
@@ -553,6 +572,9 @@ class SyndiffixBlobReader(SyndiffixBlob):
                 raise ValueError(f"Invalid columns: {', '.join(missing_columns)}")
 
         _check_columns_exist(columns, self.col_names_all)
+        # Check for duplicate column names
+        if len(set(columns)) != len(columns):
+            raise ValueError("Duplicate column names")
         self.original_column_order = columns.copy()
         if target_column is not None and target_column not in self.col_names_all:
             raise ValueError(f"Target column '{target_column}' is not a valid column.")
