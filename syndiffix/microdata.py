@@ -3,7 +3,7 @@ from bisect import bisect_left
 from itertools import islice
 from os.path import commonprefix
 from random import Random
-from typing import Generator, Iterable, Literal, Set, cast
+from typing import Generator, Iterable, Literal, Optional, Set, cast
 
 import numpy as np
 import pandas as pd
@@ -14,6 +14,7 @@ from pandas.api.types import (
     is_integer_dtype,
     is_string_dtype,
 )
+from sklearn.preprocessing import MinMaxScaler
 
 from .bucket import Buckets
 from .common import ColumnType, Value
@@ -48,6 +49,9 @@ class DataConvertor(ABC):
 
 
 class BooleanConvertor(DataConvertor):
+    def __init__(self) -> None:
+        self.scaler: Optional[MinMaxScaler] = None
+
     def column_type(self) -> ColumnType:
         return ColumnType.BOOLEAN
 
@@ -61,6 +65,9 @@ class BooleanConvertor(DataConvertor):
 
 
 class RealConvertor(DataConvertor):
+    def __init__(self) -> None:
+        self.scaler: Optional[MinMaxScaler] = MinMaxScaler()
+
     def column_type(self) -> ColumnType:
         return ColumnType.REAL
 
@@ -74,6 +81,9 @@ class RealConvertor(DataConvertor):
 
 
 class IntegerConvertor(DataConvertor):
+    def __init__(self) -> None:
+        self.scaler: Optional[MinMaxScaler] = MinMaxScaler()
+
     def column_type(self) -> ColumnType:
         return ColumnType.INTEGER
 
@@ -87,6 +97,9 @@ class IntegerConvertor(DataConvertor):
 
 
 class TimestampConvertor(DataConvertor):
+    def __init__(self) -> None:
+        self.scaler: Optional[MinMaxScaler] = MinMaxScaler()
+
     def column_type(self) -> ColumnType:
         return ColumnType.TIMESTAMP
 
@@ -103,6 +116,7 @@ class TimestampConvertor(DataConvertor):
 
 class StringConvertor(DataConvertor):
     def __init__(self, values: Iterable[Value]) -> None:
+        self.scaler: Optional[MinMaxScaler] = None
         unique_values = set(v for v in values if not pd.isna(v))
         for value in unique_values:
             if not isinstance(value, str):
@@ -188,6 +202,24 @@ def get_convertor(df: pd.DataFrame, column: str) -> DataConvertor:
         return StringConvertor(df[column])
     else:
         raise TypeError(f"Dtype {dtype} is not supported.")
+
+
+def _normalize(values: list[float], scaler: Optional[MinMaxScaler]) -> list[float]:
+    if scaler is None:
+        # Convertors that don't need normalization
+        return values
+
+    # MinMax normalize values, while retaining the NaN values
+    values_array = np.array(values)
+    nan_indices = np.isnan(values_array)
+    if nan_indices.all():
+        return values
+    median_value = np.nanmedian(values_array)
+    values_array[nan_indices] = median_value
+    values_reshaped = values_array.reshape(-1, 1)
+    normalized_values = scaler.fit_transform(values_reshaped).flatten()
+    normalized_values[nan_indices] = np.nan
+    return normalized_values.tolist()
 
 
 def _apply_convertor(value: Value, convertor: DataConvertor) -> float:

@@ -10,6 +10,7 @@ from syndiffix import Synthesizer
 from syndiffix.bucket import Bucket
 from syndiffix.interval import Interval
 from syndiffix.microdata import *
+from syndiffix.microdata import _normalize
 
 from .conftest import *
 
@@ -243,3 +244,36 @@ def test_safe_values_e2e_some() -> None:
     syn_data = Synthesizer(data).sample()
     for column in syn_data:
         assert syn_data[column].apply(lambda x: "*" in str(x)).sum() != 0
+
+
+def test_normalize_with_scaler() -> None:
+    values = [1.0, 2.0, np.nan, 4.0, 5.0]
+    scaler = MinMaxScaler()
+    normalized_values = _normalize(values, scaler)
+    expected_values = [0.0, 0.25, np.nan, 0.75, 1.0]
+    assert np.allclose(
+        [v for v in normalized_values if not np.isnan(v)], [v for v in expected_values if not np.isnan(v)]
+    )
+    assert np.isnan(normalized_values[2])
+
+
+def test_normalize_without_scaler() -> None:
+    values = [1.0, 2.0, np.nan, 4.0, 5.0]
+    normalized_values = _normalize(values, None)
+    assert normalized_values == values
+
+
+def test_normalize_all_nan() -> None:
+    values = [np.nan, np.nan, np.nan]
+    scaler = MinMaxScaler()
+    normalized_values = _normalize(values, scaler)
+    assert len(normalized_values) == len(values)
+    assert all(np.isnan(v) for v in normalized_values)
+
+
+def test_normalize_no_nan() -> None:
+    values = [1.0, 2.0, 3.0, 4.0, 5.0]
+    scaler = MinMaxScaler()
+    normalized_values = _normalize(values, scaler)
+    expected_values = [0.0, 0.25, 0.5, 0.75, 1.0]
+    assert np.allclose(normalized_values, expected_values)
