@@ -5,11 +5,13 @@ from random import Random
 import numpy as np
 import pandas as pd
 import pytest
+from sklearn.preprocessing import MinMaxScaler
 
 from syndiffix import Synthesizer
 from syndiffix.bucket import Bucket
 from syndiffix.interval import Interval
 from syndiffix.microdata import *
+from syndiffix.microdata import _normalize
 
 from .conftest import *
 
@@ -57,7 +59,8 @@ def test_casts_to_float() -> None:
 
     results = apply_convertors(convertors, data)
     assert results.shape == data.shape
-    assert results.values[0, :].tolist() == [5.0, 6.0, 1.0, 0.0, 86400.0]
+    # Because of normalization, values have been changed
+    assert results.values[0, :].tolist() == [0.0, 0.0, 1.0, 0.0, 0.0]
 
 
 def test_recognizes_types() -> None:
@@ -88,17 +91,18 @@ a,b,c,d,e,f,g,h,i
     )
     data = pd.read_csv(csv, index_col=False, parse_dates=["h"])
     results = apply_convertors(_get_convertors(data), data)
+    # Because of normalization, some values have been changed
     expected = pd.DataFrame(
         {
-            "a": [1.0, 1.0],
-            "b": [1.5, 1.5],
-            "c": [1e-7, 1e-7],
+            "a": [0.0, 0.0],
+            "b": [0.0, 0.0],
+            "c": [0.0, 0.0],
             "d": [0.0, 1.0],
-            "e": [np.nan, 1.5],
+            "e": [np.nan, 0.0],
             "f": [np.nan, 0.0],
             "g": [np.nan, np.nan],
-            "h": [86400.0, np.nan],
-            "i": [np.nan, 1.5],
+            "h": [0.0, np.nan],
+            "i": [np.nan, 0.0],
         }
     )
     assert results.equals(expected)
@@ -109,7 +113,7 @@ def test_generates_real_microdata() -> None:
         Bucket((Interval(-1.0, 2.0), Interval(3.0, 3.0)), 3),
         Bucket((Interval(-11.0, 12.0), Interval(13.0, 13.0)), 10),
     ]
-    microdata = generate_microdata(buckets, [RealConvertor(), RealConvertor()], [1234.0, 1234.0], _rng)
+    microdata = generate_microdata(buckets, [RealConvertor([1.23]), RealConvertor([1.23])], [1234.0, 1234.0], _rng)
 
     assert len(microdata) == 13
 
@@ -243,3 +247,36 @@ def test_safe_values_e2e_some() -> None:
     syn_data = Synthesizer(data).sample()
     for column in syn_data:
         assert syn_data[column].apply(lambda x: "*" in str(x)).sum() != 0
+
+
+def test_normalize_with_scaler() -> None:
+    values = pd.Series([1.0, 2.0, np.nan, 4.0, 5.0])
+    scaler = MinMaxScaler()
+    normalized_values = _normalize(values, scaler)
+    expected_values = [0.0, 0.25, np.nan, 0.75, 1.0]
+    assert np.allclose(
+        [v for v in normalized_values if not np.isnan(v)], [v for v in expected_values if not np.isnan(v)]
+    )
+    assert np.isnan(normalized_values[2])
+
+
+def test_normalize_without_scaler() -> None:
+    values = pd.Series([1.0, 2.0, np.nan, 4.0, 5.0])
+    normalized_values = _normalize(values, None)
+    assert normalized_values.equals(values)
+
+
+def test_normalize_all_nan() -> None:
+    values = pd.Series([np.nan, np.nan, np.nan])
+    scaler = MinMaxScaler()
+    normalized_values = _normalize(values, scaler)
+    assert len(normalized_values) == len(values)
+    assert all(np.isnan(v) for v in normalized_values)
+
+
+def test_normalize_no_nan() -> None:
+    values = pd.Series([1.0, 2.0, 3.0, 4.0, 5.0])
+    scaler = MinMaxScaler()
+    normalized_values = _normalize(values, scaler)
+    expected_values = pd.Series([0.0, 0.25, 0.5, 0.75, 1.0])
+    assert np.allclose(normalized_values, expected_values)

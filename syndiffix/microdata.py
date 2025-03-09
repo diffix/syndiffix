@@ -3,7 +3,7 @@ from bisect import bisect_left
 from itertools import islice
 from os.path import commonprefix
 from random import Random
-from typing import Generator, Iterable, Literal, Set, cast
+from typing import Generator, Iterable, Literal, Optional, Set, cast
 
 import numpy as np
 import pandas as pd
@@ -14,6 +14,7 @@ from pandas.api.types import (
     is_integer_dtype,
     is_string_dtype,
 )
+from sklearn.preprocessing import MinMaxScaler
 
 from .bucket import Buckets
 from .common import ColumnType, Value
@@ -31,6 +32,9 @@ TIMESTAMP_REFERENCE = pd.Timestamp("1800-01-01T00:00:00")
 
 
 class DataConvertor(ABC):
+    def __init__(self) -> None:
+        self.scaler: Optional[MinMaxScaler] = None
+
     @abstractmethod
     def column_type(self) -> ColumnType:
         pass
@@ -48,6 +52,9 @@ class DataConvertor(ABC):
 
 
 class BooleanConvertor(DataConvertor):
+    def __init__(self) -> None:
+        super().__init__()
+
     def column_type(self) -> ColumnType:
         return ColumnType.BOOLEAN
 
@@ -61,6 +68,14 @@ class BooleanConvertor(DataConvertor):
 
 
 class RealConvertor(DataConvertor):
+    def __init__(self, values: Iterable[Value]) -> None:
+        super().__init__()
+        # Fit up to 0.9999 so that the max bucket range is 0-1
+        self.scaler = MinMaxScaler(feature_range=(0, 0.9999))
+        # This value-neutral fitting is only for passing unit tests.
+        self.scaler.fit(np.array([[0.0], [0.9999]]))
+        self.round_precision = _get_round_precision(values)
+
     def column_type(self) -> ColumnType:
         return ColumnType.REAL
 
@@ -70,10 +85,19 @@ class RealConvertor(DataConvertor):
 
     def from_interval(self, interval: Interval, rng: Random) -> MicrodataValue:
         value = _generate_float(interval, rng)
+        value = _inverse_normalize_value(value, self.scaler)
+        value = round(value, self.round_precision)
         return (value, value)
 
 
 class IntegerConvertor(DataConvertor):
+    def __init__(self) -> None:
+        super().__init__()
+        # Fit up to 0.9999 so that the max bucket range is 0-1
+        self.scaler = MinMaxScaler(feature_range=(0, 0.9999))
+        # This value-neutral fitting is only for passing unit tests.
+        self.scaler.fit(np.array([[0.0], [0.9999]]))
+
     def column_type(self) -> ColumnType:
         return ColumnType.INTEGER
 
@@ -82,11 +106,20 @@ class IntegerConvertor(DataConvertor):
         return float(value)
 
     def from_interval(self, interval: Interval, rng: Random) -> MicrodataValue:
-        value = int(_generate_float(interval, rng))
+        value = _generate_float(interval, rng)
+        value = _inverse_normalize_value(value, self.scaler)
+        value = round(value)
         return (value, float(value))
 
 
 class TimestampConvertor(DataConvertor):
+    def __init__(self) -> None:
+        super().__init__()
+        # Fit up to 0.9999 so that the max bucket range is 0-1
+        self.scaler = MinMaxScaler(feature_range=(0, 0.9999))
+        # This value-neutral fitting is only for passing unit tests.
+        self.scaler.fit(np.array([[0.0], [0.9999]]))
+
     def column_type(self) -> ColumnType:
         return ColumnType.TIMESTAMP
 
@@ -97,12 +130,14 @@ class TimestampConvertor(DataConvertor):
 
     def from_interval(self, interval: Interval, rng: Random) -> MicrodataValue:
         value = _generate_float(interval, rng)
+        value = _inverse_normalize_value(value, self.scaler)
         datetime = TIMESTAMP_REFERENCE + np.timedelta64(int(value), "s")
         return (datetime, value)
 
 
 class StringConvertor(DataConvertor):
     def __init__(self, values: Iterable[Value]) -> None:
+        super().__init__()
         unique_values = set(v for v in values if not pd.isna(v))
         for value in unique_values:
             if not isinstance(value, str):
@@ -160,6 +195,21 @@ def _generate_float(interval: Interval, rng: Random) -> float:
     return rng.uniform(interval.min, interval.max)
 
 
+def _get_round_precision(values: Iterable[Value]) -> int:
+    max_precision = 0
+    for value in values:
+        assert isinstance(value, float) or isinstance(value, np.floating)
+        value_str = str(value)
+        if "." in value_str:
+            decimal_part = value_str.split(".")[1]
+            precision = len(decimal_part)
+        else:
+            precision = 0
+        if precision > max_precision:
+            max_precision = precision
+    return max_precision
+
+
 def _generate(interval: Interval, convertor: DataConvertor, null_mapping: float, rng: Random) -> MicrodataValue:
     return convertor.from_interval(interval, rng) if interval.min != null_mapping else (None, null_mapping)
 
@@ -178,7 +228,7 @@ def get_convertor(df: pd.DataFrame, column: str) -> DataConvertor:
     if is_integer_dtype(dtype):
         return IntegerConvertor()
     elif is_float_dtype(dtype):
-        return RealConvertor()
+        return RealConvertor(df[column])
     elif is_bool_dtype(dtype):
         return BooleanConvertor()
     elif is_datetime64_dtype(dtype):
@@ -188,6 +238,32 @@ def get_convertor(df: pd.DataFrame, column: str) -> DataConvertor:
         return StringConvertor(df[column])
     else:
         raise TypeError(f"Dtype {dtype} is not supported.")
+
+
+def _inverse_normalize_value(value: float, scaler: MinMaxScaler) -> float:
+    # Inverse of normalize, but for one value at a time
+    value_array = np.array([[value]])
+    inverse_transformed_array = scaler.inverse_transform(value_array)
+    inverse_transformed_value = inverse_transformed_array[0, 0]
+    return float(inverse_transformed_value)
+
+
+def _normalize(values: pd.Series, scaler: Optional[MinMaxScaler]) -> pd.Series:
+    if scaler is None:
+        # Convertors that don't need normalization
+        return values
+
+    # MinMax normalize values, while retaining the NaN values
+    values_array = values.to_numpy()
+    nan_indices = np.isnan(values_array)
+    if nan_indices.all():
+        return values
+    median_value = np.nanmedian(values_array)
+    values_array[nan_indices] = median_value
+    values_reshaped = values_array.reshape(-1, 1)
+    normalized_values = scaler.fit_transform(values_reshaped).flatten()
+    normalized_values[nan_indices] = np.nan
+    return pd.Series(normalized_values, index=values.index)
 
 
 def _apply_convertor(value: Value, convertor: DataConvertor) -> float:
@@ -203,7 +279,11 @@ def apply_convertors(convertors: list[DataConvertor], raw_data: pd.DataFrame) ->
         for column, convertor in zip(raw_data.columns, convertors)
     ]
 
-    return pd.DataFrame(dict(zip(raw_data.columns, converted_columns)), copy=False)
+    possibly_normalized_columns = [
+        _normalize(column, convertor.scaler) for column, convertor in zip(converted_columns, convertors)
+    ]
+
+    return pd.DataFrame(dict(zip(raw_data.columns, possibly_normalized_columns)), copy=False)
 
 
 def generate_microdata(
