@@ -152,7 +152,7 @@ def _flatten_contributions(pid_contributions: PidContributions, context: Anonymi
     top_count = _random_uniform(top_interval, _mix_seed("top", flat_seed))
 
     top_group_sum = sum(
-        contribution for _, contribution in sorted_value_counts[outlier_count: (outlier_count + top_count)]
+        contribution for _, contribution in sorted_value_counts[outlier_count : (outlier_count + top_count)]
     )
     top_group_average = top_group_sum / top_count
 
