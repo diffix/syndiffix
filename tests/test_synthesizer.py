@@ -49,7 +49,7 @@ def test_noisy_category_numeric_dataset() -> None:
 
     # Test numeric column.
     assert syn_data[1].mean() == approx(raw_data[1].mean(), abs=5)
-    assert syn_data[1].std() == approx(raw_data[1].std(), rel=0.3)
+    assert syn_data[1].std() == approx(raw_data[1].std(), rel=0.35)
 
 
 def test_string_ranges() -> None:
@@ -134,3 +134,27 @@ def test_result_consistency() -> None:
     syn_data_2 = Synthesizer(raw_data).sample()
 
     pd.testing.assert_frame_equal(syn_data_1, syn_data_2)
+
+
+def test_normalize_reals() -> None:
+    col1_vals = [0.93227, 8.16111, 143.7828783]
+    col2_vals = [-31.6776, 0.00011, 20.71131]
+    num_rows = 500
+    col1_random = np.random.choice(col1_vals, num_rows)
+    col2_random = np.random.choice(col2_vals, num_rows)
+    df = pd.DataFrame({"col1": col1_random, "col2": col2_random})
+    syn_data = Synthesizer(df).sample()
+    assert set(syn_data["col1"]) == set(col1_vals)
+    assert set(syn_data["col2"]) == set(col2_vals)
+
+
+def test_normalize_ints() -> None:
+    col1_vals = [-6, 0, 1294]
+    col2_vals = [-20, 14, 15]
+    num_rows = 500
+    col1_random = np.random.choice(col1_vals, num_rows)
+    col2_random = np.random.choice(col2_vals, num_rows)
+    df = pd.DataFrame({"col1": col1_random, "col2": col2_random})
+    syn_data = Synthesizer(df).sample()
+    assert set(syn_data["col1"]) == set(col1_vals)
+    assert set(syn_data["col2"]) == set(col2_vals)

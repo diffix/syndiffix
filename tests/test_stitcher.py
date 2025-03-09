@@ -50,8 +50,9 @@ def test_left_stitch1_1() -> None:
     assert set(df_left["i1"]) == set(df_stitched["i1"])
     if set(df_left["i1"]) != set(df_right["i1"]):
         assert set(df_right["i1"]) != set(df_stitched["i1"])
-    assert set(df_right["f"]) != set(df_stitched["f"])
+    assert len(df_right) == len(df_left) - 10
     assert len(df_left) == len(df_stitched)
+    assert len(df_right) == len(set(df_right["f"]))
 
 
 def test_shared_stitch1() -> None:
