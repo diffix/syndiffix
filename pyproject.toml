@@ -17,7 +17,7 @@ profile = "black"
 
 [tool.poetry]
 name = "syndiffix"
-version = "1.0.4"
+version = "1.0.5"
 description = "Python implementation of the SynDiffix synthetic data generation mechanism."
 authors = ["Open Diffix <hello@open-diffix.org>"]
 readme = "README.md"
@@ -28,7 +28,7 @@ include = ["CHANGELOG.md", "docs/*", "example_simple.py"]
 
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.13"
+python = ">=3.10"
 pandas = "^2.1"
 flake8-pyproject = "^1.2.3"
 scikit-learn = "^1.3"
