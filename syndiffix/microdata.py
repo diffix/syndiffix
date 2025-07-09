@@ -71,7 +71,7 @@ class RealConvertor(DataConvertor):
     def __init__(self, values: Iterable[Value]) -> None:
         super().__init__()
         # Fit up to 0.9999 so that the max bucket range is [0-1)
-        self.scaler = MinMaxScaler(feature_range=(0, 0.9999))
+        self.scaler = MinMaxScaler(feature_range=(0.0, 0.9999))  # type: ignore
         # This value-neutral fitting is only for passing unit tests.
         self.scaler.fit(np.array([[0.0], [0.9999]]))
         self.round_precision = _get_round_precision(values)
@@ -80,11 +80,12 @@ class RealConvertor(DataConvertor):
         return ColumnType.REAL
 
     def to_float(self, value: Value) -> float:
-        assert isinstance(value, float) or isinstance(value, np.floating)
-        return float(value)
+        assert value is not None and (isinstance(value, float) or isinstance(value, np.floating))
+        return round(float(value), self.round_precision)
 
     def from_interval(self, interval: Interval, rng: Random) -> MicrodataValue:
         value = _generate_float(interval, rng)
+        assert self.scaler is not None
         value = _inverse_normalize_value(value, self.scaler)
         value = round(value, self.round_precision)
         return (value, value)
@@ -94,7 +95,7 @@ class IntegerConvertor(DataConvertor):
     def __init__(self) -> None:
         super().__init__()
         # Fit up to 0.9999 so that the max bucket range is [0-1)
-        self.scaler = MinMaxScaler(feature_range=(0, 0.9999))
+        self.scaler = MinMaxScaler(feature_range=(0.0, 0.9999))  # type: ignore
         # This value-neutral fitting is only for passing unit tests.
         self.scaler.fit(np.array([[0.0], [0.9999]]))
 
@@ -102,11 +103,12 @@ class IntegerConvertor(DataConvertor):
         return ColumnType.INTEGER
 
     def to_float(self, value: Value) -> float:
-        assert isinstance(value, int) or isinstance(value, np.integer)
+        assert value is not None and (isinstance(value, int) or isinstance(value, np.integer))
         return float(value)
 
     def from_interval(self, interval: Interval, rng: Random) -> MicrodataValue:
         value = _generate_float(interval, rng)
+        assert self.scaler is not None
         value = _inverse_normalize_value(value, self.scaler)
         value = round(value)
         return (value, float(value))
@@ -116,7 +118,7 @@ class TimestampConvertor(DataConvertor):
     def __init__(self) -> None:
         super().__init__()
         # Fit up to 0.9999 so that the max bucket range is [0-1)
-        self.scaler = MinMaxScaler(feature_range=(0, 0.9999))
+        self.scaler = MinMaxScaler(feature_range=(0.0, 0.9999))  # type: ignore
         # This value-neutral fitting is only for passing unit tests.
         self.scaler.fit(np.array([[0.0], [0.9999]]))
 
@@ -130,6 +132,7 @@ class TimestampConvertor(DataConvertor):
 
     def from_interval(self, interval: Interval, rng: Random) -> MicrodataValue:
         value = _generate_float(interval, rng)
+        assert self.scaler is not None
         value = _inverse_normalize_value(value, self.scaler)
         datetime = TIMESTAMP_REFERENCE + np.timedelta64(round(value), "s")
         return (datetime, value)
