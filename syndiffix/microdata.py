@@ -70,7 +70,7 @@ class BooleanConvertor(DataConvertor):
 class RealConvertor(DataConvertor):
     def __init__(self, values: Iterable[Value]) -> None:
         super().__init__()
-        # Fit up to 0.9999 so that the max bucket range is 0-1
+        # Fit up to 0.9999 so that the max bucket range is [0-1)
         self.scaler = MinMaxScaler(feature_range=(0, 0.9999))
         # This value-neutral fitting is only for passing unit tests.
         self.scaler.fit(np.array([[0.0], [0.9999]]))
@@ -93,7 +93,7 @@ class RealConvertor(DataConvertor):
 class IntegerConvertor(DataConvertor):
     def __init__(self) -> None:
         super().__init__()
-        # Fit up to 0.9999 so that the max bucket range is 0-1
+        # Fit up to 0.9999 so that the max bucket range is [0-1)
         self.scaler = MinMaxScaler(feature_range=(0, 0.9999))
         # This value-neutral fitting is only for passing unit tests.
         self.scaler.fit(np.array([[0.0], [0.9999]]))
@@ -115,7 +115,7 @@ class IntegerConvertor(DataConvertor):
 class TimestampConvertor(DataConvertor):
     def __init__(self) -> None:
         super().__init__()
-        # Fit up to 0.9999 so that the max bucket range is 0-1
+        # Fit up to 0.9999 so that the max bucket range is [0-1)
         self.scaler = MinMaxScaler(feature_range=(0, 0.9999))
         # This value-neutral fitting is only for passing unit tests.
         self.scaler.fit(np.array([[0.0], [0.9999]]))
@@ -131,7 +131,7 @@ class TimestampConvertor(DataConvertor):
     def from_interval(self, interval: Interval, rng: Random) -> MicrodataValue:
         value = _generate_float(interval, rng)
         value = _inverse_normalize_value(value, self.scaler)
-        datetime = TIMESTAMP_REFERENCE + np.timedelta64(int(value), "s")
+        datetime = TIMESTAMP_REFERENCE + np.timedelta64(round(value), "s")
         return (datetime, value)
 
 
