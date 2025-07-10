@@ -11,7 +11,7 @@ from syndiffix import Synthesizer
 from syndiffix.bucket import Bucket
 from syndiffix.interval import Interval
 from syndiffix.microdata import *
-from syndiffix.microdata import _normalize, _convert_to_safe_value
+from syndiffix.microdata import _convert_to_safe_value, _normalize
 
 from .conftest import *
 
@@ -376,4 +376,3 @@ def test_convert_to_safe_value_negative_values() -> None:
     assert _convert_to_safe_value(-1.0, safe_values) == -2.0
     assert _convert_to_safe_value(1.0, safe_values) == 0.0
     assert _convert_to_safe_value(5.5, safe_values) == 3.0
-

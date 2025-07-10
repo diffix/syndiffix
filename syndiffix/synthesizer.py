@@ -12,14 +12,18 @@ from .clustering.common import MicrodataRow
 from .clustering.stitching import StitchingMetadata, build_table
 from .clustering.strategy import ClusteringStrategy, DefaultClustering, MlClustering
 from .common import *
-from .microdata import make_value_safe_columns_array
 from .counters import (
     CountersFactory,
     GenericPidCountersFactory,
     UniquePidCountersFactory,
 )
 from .forest import Forest
-from .microdata import apply_convertors, generate_microdata, get_convertor
+from .microdata import (
+    apply_convertors,
+    generate_microdata,
+    get_convertor,
+    make_value_safe_columns_array,
+)
 
 
 def _get_default_salt() -> bytes:
@@ -62,7 +66,7 @@ class Synthesizer(object):
         bucketization_params: BucketizationParams = BucketizationParams(),
         target_column: Optional[ColumnId | str] = None,
         clustering: Optional[ClusteringStrategy] = None,
-        value_safe_columns: Optional[list[ColumnId | str]] = None,
+        value_safe_columns: Optional[list[int | ColumnId | str]] = None,
     ) -> None:
         if target_column is not None:
             check_column_names_or_ids(raw_data, target_column)

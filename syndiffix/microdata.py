@@ -17,8 +17,7 @@ from pandas.api.types import (
 from sklearn.preprocessing import MinMaxScaler
 
 from .bucket import Buckets
-from .common import ColumnType, Value, ColumnId
-from .common import check_column_names_or_ids
+from .common import ColumnId, ColumnType, Value, check_column_names_or_ids
 from .interval import Interval, Intervals
 from .tree import Branch, Leaf, Node
 
@@ -244,6 +243,7 @@ def _get_round_precision(values: Iterable[float]) -> int:
             max_precision = precision
     return max_precision
 
+
 def _get_precision_from_real(value: float) -> int:
     value_str = str(value)
     if "." in value_str:
@@ -257,30 +257,30 @@ def _get_precision_from_real(value: float) -> int:
 def _convert_to_safe_value(value: float, safe_value_set: list[float]) -> float:
     """
     Return the value from safe_value_set that is closest to value.
-    
+
     Args:
         value: The target value to find closest match for
         safe_value_set: Sorted list of safe values in ascending order
-        
+
     Returns:
         The safe value closest to the input value
     """
     if not safe_value_set:
         raise ValueError("safe_value_set cannot be empty")
-    
+
     # Find insertion point using bisect
     insert_pos = bisect_left(safe_value_set, value)
-    
+
     # Handle edge cases
     if insert_pos == 0:
         return safe_value_set[0]
     elif insert_pos == len(safe_value_set):
         return safe_value_set[-1]
-    
+
     # Compare distances to left and right neighbors
     left_value = safe_value_set[insert_pos - 1]
     right_value = safe_value_set[insert_pos]
-    
+
     if abs(value - left_value) <= abs(value - right_value):
         return left_value
     else:
@@ -378,28 +378,28 @@ def generate_microdata(
     return microdata_rows
 
 
-def make_value_safe_columns_array(df: pd.DataFrame, value_safe_columns: list[str | ColumnId]) -> list[bool]:
+def make_value_safe_columns_array(df: pd.DataFrame, value_safe_columns: list[int | str | ColumnId]) -> list[bool]:
     """
     Create a boolean array indicating which columns are value-safe.
-    
+
     Args:
         df: The DataFrame to create the array for
         value_safe_columns: List of column names (strings) or column indices (ints)
-        
+
     Returns:
         List of booleans, same length as number of columns in df. True if the
         corresponding column is marked as value-safe.
-        
+
     Raises:
         ValueError: If column names don't exist in DataFrame or indices are out of range
         TypeError: If value_safe_columns contains invalid types
     """
     # Validate the input using existing function
     check_column_names_or_ids(df, value_safe_columns)
-    
+
     # Initialize boolean array with False values
     result = [False] * len(df.columns)
-    
+
     # Set True for specified columns
     for column in value_safe_columns:
         if isinstance(column, str):
@@ -412,6 +412,6 @@ def make_value_safe_columns_array(df: pd.DataFrame, value_safe_columns: list[str
         elif isinstance(column, int):
             # Use column index directly
             result[column] = True
-    
+
     return result
     return result
