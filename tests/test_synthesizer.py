@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 from pytest import approx
 
 from syndiffix import Synthesizer
@@ -158,3 +159,61 @@ def test_normalize_ints() -> None:
     syn_data = Synthesizer(df).sample()
     assert set(syn_data["col1"]) == set(col1_vals)
     assert set(syn_data["col2"]) == set(col2_vals)
+
+
+def test_value_safe_columns_integers() -> None:
+    # Generate 100 random integers with wide range to minimize duplicates
+    np.random.seed(42)  # For reproducible tests
+    integer_values = np.random.randint(-1000000, 1000000, size=100)
+    df = pd.DataFrame({"safe_col": integer_values, "other_col": np.random.randint(0, 10, size=100)})
+
+    syn_data = Synthesizer(df, value_safe_columns=["safe_col"]).sample()
+
+    # Ensure all synthesized values in safe_col are from original dataset
+    original_safe_values = set(df["safe_col"])
+    synthesized_safe_values = set(syn_data["safe_col"])
+    assert synthesized_safe_values.issubset(original_safe_values)
+
+    # Ensure we still get a reasonable number of rows
+    assert len(syn_data) > 0
+
+
+def test_value_safe_columns_floats() -> None:
+    # Generate 100 random floats between -1000 and 1000 with 5 digits precision
+    np.random.seed(42)  # For reproducible tests
+    float_values = np.round(np.random.uniform(-1000, 1000, size=100), 10)
+    df = pd.DataFrame({"safe_col": float_values, "other_col": np.random.uniform(0, 1, size=100)})
+
+    syn_data = Synthesizer(df, value_safe_columns=["safe_col"]).sample()
+
+    # Ensure all synthesized values in safe_col are from original dataset
+    original_safe_values = set(df["safe_col"])
+    synthesized_safe_values = set(syn_data["safe_col"])
+    assert synthesized_safe_values.issubset(original_safe_values)
+
+    # Ensure we still get a reasonable number of rows
+    assert len(syn_data) > 0
+    original_safe_values = set(df["safe_col"])
+    synthesized_safe_values = set(syn_data["safe_col"])
+    assert synthesized_safe_values.issubset(original_safe_values)
+
+    # Ensure we still get a reasonable number of rows
+    assert len(syn_data) > 0
+
+
+def test_value_safe_columns_floats_approximate() -> None:
+    # Generate 100 random floats between -1000 and 1000 without rounding
+    np.random.seed(42)  # For reproducible tests
+    float_values = np.random.uniform(-1000, 1000, size=100)
+    df = pd.DataFrame({"safe_col": float_values, "other_col": np.random.uniform(0, 1, size=100)})
+
+    syn_data = Synthesizer(df, value_safe_columns=["safe_col"]).sample()
+
+    # Ensure each synthesized value is very close to a value in original dataset
+    original_safe_values = df["safe_col"].values
+    for syn_value in syn_data["safe_col"]:
+        # Check if syn_value is close to any original value (within 1e-10 tolerance)
+        assert any(abs(syn_value - orig_value) < 1e-10 for orig_value in original_safe_values)
+
+    # Ensure we still get a reasonable number of rows
+    assert len(syn_data) > 0

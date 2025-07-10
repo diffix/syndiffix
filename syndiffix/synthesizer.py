@@ -97,9 +97,8 @@ class Synthesizer(object):
         self.raw_dtypes = raw_data.dtypes
 
         self.column_convertors = [get_convertor(raw_data, column) for column in raw_data.columns]
-        # set the value_safe flag for each column convertor
         for col_id, convertor in enumerate(self.column_convertors):
-            convertor.set_value_safe(self.value_safe_columns_array[col_id])
+            convertor.set_value_safe_flag(self.value_safe_columns_array[col_id])
         self.column_is_integral = [self._is_integral(convertor.column_type()) for convertor in self.column_convertors]
 
         self.forest = Forest(
