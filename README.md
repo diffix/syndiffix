@@ -168,7 +168,7 @@ Often a column in a dataset contains values that are publicly known. These value
 # Individual table usage
 from syndiffix import Synthesizer
 
-df_synthetic = Synthesizer(df_original, value_safe_columns=['safe_col1', 'safe_col2'])
+df_synthetic = Synthesizer(df_original, value_safe_columns=['safe_col1', 'safe_col2']).sample()
 
 # Blob usage
 from syndiffix import SyndiffixBlobBuilder
