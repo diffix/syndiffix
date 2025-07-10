@@ -17,7 +17,8 @@ from pandas.api.types import (
 from sklearn.preprocessing import MinMaxScaler
 
 from .bucket import Buckets
-from .common import ColumnType, Value
+from .common import ColumnType, Value, ColumnId
+from .common import check_column_names_or_ids
 from .interval import Interval, Intervals
 from .tree import Branch, Leaf, Node
 
@@ -34,6 +35,7 @@ TIMESTAMP_REFERENCE = pd.Timestamp("1800-01-01T00:00:00")
 class DataConvertor(ABC):
     def __init__(self) -> None:
         self.scaler: Optional[MinMaxScaler] = None
+        self.value_safe: bool = False
 
     @abstractmethod
     def column_type(self) -> ColumnType:
@@ -49,6 +51,9 @@ class DataConvertor(ABC):
 
     def analyze_tree(self, root: Node) -> None:
         pass
+
+    def set_value_safe(self, value_safe: bool) -> None:
+        self.value_safe = value_safe
 
 
 class BooleanConvertor(DataConvertor):
@@ -146,6 +151,7 @@ class StringConvertor(DataConvertor):
             if not isinstance(value, str):
                 raise TypeError(f"Not a `str` object in a string dtype column: {value}.")
         self.value_map = sorted(cast(Set[str], unique_values))
+        # Note that self.safe_values is only used if self.value_safe is False
         self.safe_values: Set[int] = set()
 
     def column_type(self) -> ColumnType:
@@ -173,7 +179,7 @@ class StringConvertor(DataConvertor):
         # The latter term in the above line can 0 (not sure why TODO: check)
         max_value = max(min_value, max_value)
         value = rng.randint(min_value, max_value)
-        if value in self.safe_values:
+        if self.value_safe is True or value in self.safe_values:
             return (self.value_map[value], float(value))
         else:
             return (
@@ -185,7 +191,8 @@ class StringConvertor(DataConvertor):
         def analyze_tree_walk(node: Node) -> None:
             if isinstance(node, Leaf):
                 low_threshold = node.context.anonymization_context.anonymization_params.low_count_params.low_threshold
-                if node.is_singularity() and node.is_over_threshold(low_threshold):
+                # Avoid the cost of maintaining safe_values if in any event all values are safe (i.e. self.value_safe is True)
+                if self.value_safe is False and node.is_singularity() and node.is_over_threshold(low_threshold):
                     self.safe_values.add(int(node.actual_intervals[0].min))
             elif isinstance(node, Branch):
                 for child_node in node.children.values():
@@ -299,3 +306,41 @@ def generate_microdata(
         )
 
     return microdata_rows
+
+
+def make_value_safe_columns_array(df: pd.DataFrame, value_safe_columns: list[str | ColumnId]) -> list[bool]:
+    """
+    Create a boolean array indicating which columns are value-safe.
+    
+    Args:
+        df: The DataFrame to create the array for
+        value_safe_columns: List of column names (strings) or column indices (ints)
+        
+    Returns:
+        List of booleans, same length as number of columns in df. True if the
+        corresponding column is marked as value-safe.
+        
+    Raises:
+        ValueError: If column names don't exist in DataFrame or indices are out of range
+        TypeError: If value_safe_columns contains invalid types
+    """
+    # Validate the input using existing function
+    check_column_names_or_ids(df, value_safe_columns)
+    
+    # Initialize boolean array with False values
+    result = [False] * len(df.columns)
+    
+    # Set True for specified columns
+    for column in value_safe_columns:
+        if isinstance(column, str):
+            # Find column index by name
+            column_index = df.columns.get_loc(column)
+            if isinstance(column_index, int):
+                result[column_index] = True
+            else:
+                raise TypeError(f"Column index for '{column}' is not an integer: {column_index}")
+        elif isinstance(column, int):
+            # Use column index directly
+            result[column] = True
+    
+    return result

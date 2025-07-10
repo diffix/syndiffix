@@ -280,3 +280,47 @@ def test_normalize_no_nan() -> None:
     normalized_values = _normalize(values, scaler)
     expected_values = pd.Series([0.0, 0.25, 0.5, 0.75, 1.0])
     assert np.allclose(normalized_values, expected_values)
+
+
+def test_value_safe_columns_invalid_string_name() -> None:
+    data = _make_safe_values_df()
+    with pytest.raises(Exception):
+        Synthesizer(data, value_safe_columns=["invalid_column"])
+
+
+def test_value_safe_columns_out_of_range_id() -> None:
+    data = _make_safe_values_df()
+    with pytest.raises(Exception):
+        Synthesizer(data, value_safe_columns=[5])
+
+
+def test_value_safe_columns_setting() -> None:
+    # Create a dataframe with 4 columns
+    data = pd.DataFrame(
+        {
+            "col1": ["a1", "a2", "a3"] * 10,
+            "col2": ["b1", "b2", "b3"] * 10,
+            "col3": ["c1", "c2", "c3"] * 10,
+            "col4": ["d1", "d2", "d3"] * 10,
+        }
+    )
+
+    # Test with string column names
+    synthesizer = Synthesizer(data, value_safe_columns=["col1", "col3"])
+    convertors = synthesizer.column_convertors
+
+    # Verify that col1 and col3 have value_safe=True, others have value_safe=False
+    assert convertors[0].value_safe is True  # col1
+    assert convertors[1].value_safe is False  # col2
+    assert convertors[2].value_safe is True  # col3
+    assert convertors[3].value_safe is False  # col4
+
+    # Test with column IDs
+    synthesizer2 = Synthesizer(data, value_safe_columns=[0, 2])
+    convertors2 = synthesizer2.column_convertors
+
+    # Verify same result with column IDs
+    assert convertors2[0].value_safe is True  # col1 (ID 0)
+    assert convertors2[1].value_safe is False  # col2 (ID 1)
+    assert convertors2[2].value_safe is True  # col3 (ID 2)
+    assert convertors2[3].value_safe is False  # col4 (ID 3)

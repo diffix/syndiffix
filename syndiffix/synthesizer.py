@@ -12,6 +12,7 @@ from .clustering.common import MicrodataRow
 from .clustering.stitching import StitchingMetadata, build_table
 from .clustering.strategy import ClusteringStrategy, DefaultClustering, MlClustering
 from .common import *
+from .microdata import make_value_safe_columns_array
 from .counters import (
     CountersFactory,
     GenericPidCountersFactory,
@@ -61,13 +62,22 @@ class Synthesizer(object):
         bucketization_params: BucketizationParams = BucketizationParams(),
         target_column: Optional[ColumnId | str] = None,
         clustering: Optional[ClusteringStrategy] = None,
+        value_safe_columns: Optional[list[ColumnId | str]] = None,
     ) -> None:
         if target_column is not None:
+            check_column_names_or_ids(raw_data, target_column)
             if clustering:
                 raise ValueError("Cannot specify both target_column and clustering parameters.")
             clustering = MlClustering(target_column=target_column)
         elif not clustering:
             clustering = DefaultClustering()
+
+        if value_safe_columns is not None:
+            if not isinstance(value_safe_columns, list):
+                raise TypeError("value_safe_columns must be a list of ColumnIds or column names.")
+            self.value_safe_columns_array = make_value_safe_columns_array(raw_data, value_safe_columns)
+        else:
+            self.value_safe_columns_array = [False] * len(raw_data.columns)
 
         if anonymization_params.salt == b"":
             anonymization_params = replace(anonymization_params, salt=_get_default_salt())
@@ -87,6 +97,9 @@ class Synthesizer(object):
         self.raw_dtypes = raw_data.dtypes
 
         self.column_convertors = [get_convertor(raw_data, column) for column in raw_data.columns]
+        # set the value_safe flag for each column convertor
+        for col_id, convertor in enumerate(self.column_convertors):
+            convertor.set_value_safe(self.value_safe_columns_array[col_id])
         self.column_is_integral = [self._is_integral(convertor.column_type()) for convertor in self.column_convertors]
 
         self.forest = Forest(
