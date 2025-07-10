@@ -217,7 +217,8 @@ class StringConvertor(DataConvertor):
         def analyze_tree_walk(node: Node) -> None:
             if isinstance(node, Leaf):
                 low_threshold = node.context.anonymization_context.anonymization_params.low_count_params.low_threshold
-                # Avoid the cost of maintaining safe_values if in any event all values are safe (i.e. self.value_safe_flag is True)
+                # Avoid the cost of maintaining safe_values if in any
+                # event all values are safe (i.e. self.value_safe_flag is True)
                 if self.value_safe_flag is False and node.is_singularity() and node.is_over_threshold(low_threshold):
                     self.safe_values.add(int(node.actual_intervals[0].min))
             elif isinstance(node, Branch):

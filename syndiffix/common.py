@@ -114,7 +114,8 @@ def check_column_names_or_ids(df: pd.DataFrame, columns: int | str | ColumnId | 
     elif isinstance(columns, int):
         if not (0 <= columns < num_columns):
             raise ValueError(
-                f"ColumnId {columns} is out of range. DataFrame has {num_columns} columns (valid range: 0-{num_columns - 1})"
+                f"ColumnId {columns} is out of range. DataFrame has {num_columns}"
+                f"columns (valid range: 0-{num_columns - 1})"
             )
     # Handle lists
     elif isinstance(columns, list):
@@ -134,7 +135,8 @@ def check_column_names_or_ids(df: pd.DataFrame, columns: int | str | ColumnId | 
             invalid_ids = [col for col in columns if isinstance(col, int) and not (0 <= col < num_columns)]
             if invalid_ids:
                 raise ValueError(
-                    f"ColumnIds {invalid_ids} are out of range. DataFrame has {num_columns} columns (valid range: 0-{num_columns - 1})"
+                    f"ColumnIds {invalid_ids} are out of range. DataFrame has"
+                    f"{num_columns} columns (valid range: 0-{num_columns - 1})"
                 )
 
         else:
