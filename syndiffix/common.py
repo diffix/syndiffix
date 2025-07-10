@@ -91,3 +91,56 @@ def get_items_combination(combination: Combination, items: Sequence[T]) -> tuple
 
 def get_items_combination_list(combination: Combination, items: Sequence[T]) -> list[T]:
     return [items[index] for index in combination]
+
+
+def check_column_names_or_ids(df: pd.DataFrame, columns: int | str | ColumnId | list[int | ColumnId | str]) -> None:
+    """
+    Validate that column names or IDs are valid for the given DataFrame.
+
+    Args:
+        df: The DataFrame to validate against
+        columns: Column name(s) or ID(s) to validate
+
+    Raises:
+        ValueError: If column names don't exist in DataFrame or ints are out of range
+        TypeError: If columns parameter has invalid type
+    """
+    num_columns = len(df.columns)
+
+    # Handle single values
+    if isinstance(columns, str):
+        if columns not in df.columns:
+            raise ValueError(f"Column name '{columns}' not found in DataFrame. Available columns: {list(df.columns)}")
+    elif isinstance(columns, int):
+        if not (0 <= columns < num_columns):
+            raise ValueError(
+                f"ColumnId {columns} is out of range. DataFrame has {num_columns}"
+                f"columns (valid range: 0-{num_columns - 1})"
+            )
+    # Handle lists
+    elif isinstance(columns, list):
+        if not columns:
+            return  # Empty list is valid
+
+        # Check if all elements are strings
+        if all(isinstance(col, str) for col in columns):
+            invalid_columns = [col for col in columns if col not in df.columns]
+            if invalid_columns:
+                raise ValueError(
+                    f"Column names {invalid_columns} not found in DataFrame. Available columns: {list(df.columns)}"
+                )
+
+        # Check if all elements are ColumnIds (integers)
+        elif all(isinstance(col, int) for col in columns):
+            invalid_ids = [col for col in columns if isinstance(col, int) and not (0 <= col < num_columns)]
+            if invalid_ids:
+                raise ValueError(
+                    f"ColumnIds {invalid_ids} are out of range. DataFrame has"
+                    f"{num_columns} columns (valid range: 0-{num_columns - 1})"
+                )
+
+        else:
+            raise TypeError("List must contain either all strings or all ColumnIds")
+
+    else:
+        raise TypeError("columns must be a string, ColumnId, list of strings, or list of ColumnIds")

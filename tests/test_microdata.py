@@ -11,7 +11,7 @@ from syndiffix import Synthesizer
 from syndiffix.bucket import Bucket
 from syndiffix.interval import Interval
 from syndiffix.microdata import *
-from syndiffix.microdata import _normalize
+from syndiffix.microdata import _convert_to_safe_value, _normalize
 
 from .conftest import *
 
@@ -280,3 +280,99 @@ def test_normalize_no_nan() -> None:
     normalized_values = _normalize(values, scaler)
     expected_values = pd.Series([0.0, 0.25, 0.5, 0.75, 1.0])
     assert np.allclose(normalized_values, expected_values)
+
+
+def test_value_safe_columns_invalid_string_name() -> None:
+    data = _make_safe_values_df()
+    with pytest.raises(Exception):
+        Synthesizer(data, value_safe_columns=["invalid_column"])
+
+
+def test_value_safe_columns_out_of_range_id() -> None:
+    data = _make_safe_values_df()
+    with pytest.raises(Exception):
+        Synthesizer(data, value_safe_columns=[5])
+
+
+def test_value_safe_columns_setting() -> None:
+    # Create a dataframe with 4 columns
+    data = pd.DataFrame(
+        {
+            "col1": ["a1", "a2", "a3"] * 10,
+            "col2": ["b1", "b2", "b3"] * 10,
+            "col3": ["c1", "c2", "c3"] * 10,
+            "col4": ["d1", "d2", "d3"] * 10,
+        }
+    )
+
+    # Test with string column names
+    synthesizer = Synthesizer(data, value_safe_columns=["col1", "col3"])
+    convertors = synthesizer.column_convertors
+
+    # Verify that col1 and col3 have value_safe_flag=True, others have value_safe_flag=False
+    assert convertors[0].value_safe_flag is True  # col1
+    assert convertors[1].value_safe_flag is False  # col2
+    assert convertors[2].value_safe_flag is True  # col3
+    assert convertors[3].value_safe_flag is False  # col4
+
+    # Test with column IDs
+    synthesizer2 = Synthesizer(data, value_safe_columns=[0, 2])
+    convertors2 = synthesizer2.column_convertors
+
+    # Verify same result with column IDs
+    assert convertors2[0].value_safe_flag is True  # col1 (ID 0)
+    assert convertors2[1].value_safe_flag is False  # col2 (ID 1)
+    assert convertors2[2].value_safe_flag is True  # col3 (ID 2)
+    assert convertors2[3].value_safe_flag is False  # col4 (ID 3)
+
+
+def test_convert_to_safe_value_exact_match() -> None:
+    safe_values = [1.0, 3.0, 5.0, 7.0, 9.0]
+    assert _convert_to_safe_value(5.0, safe_values) == 5.0
+    assert _convert_to_safe_value(1.0, safe_values) == 1.0
+    assert _convert_to_safe_value(9.0, safe_values) == 9.0
+
+
+def test_convert_to_safe_value_closest_match() -> None:
+    safe_values = [1.0, 3.0, 5.0, 7.0, 9.0]
+    # Test values closer to left neighbor
+    assert _convert_to_safe_value(2.0, safe_values) == 1.0
+    assert _convert_to_safe_value(1.9, safe_values) == 1.0
+    # Test values closer to right neighbor
+    assert _convert_to_safe_value(2.1, safe_values) == 3.0
+    assert _convert_to_safe_value(4.0, safe_values) == 3.0
+    # Test exact midpoint (should prefer left due to <= condition)
+    assert _convert_to_safe_value(2.0, safe_values) == 1.0
+    assert _convert_to_safe_value(4.0, safe_values) == 3.0
+
+
+def test_convert_to_safe_value_edge_cases() -> None:
+    safe_values = [1.0, 3.0, 5.0, 7.0, 9.0]
+    # Test values below minimum
+    assert _convert_to_safe_value(-10.0, safe_values) == 1.0
+    assert _convert_to_safe_value(0.5, safe_values) == 1.0
+    # Test values above maximum
+    assert _convert_to_safe_value(15.0, safe_values) == 9.0
+    assert _convert_to_safe_value(9.5, safe_values) == 9.0
+
+
+def test_convert_to_safe_value_single_element() -> None:
+    safe_values = [5.0]
+    assert _convert_to_safe_value(1.0, safe_values) == 5.0
+    assert _convert_to_safe_value(5.0, safe_values) == 5.0
+    assert _convert_to_safe_value(10.0, safe_values) == 5.0
+
+
+def test_convert_to_safe_value_empty_list() -> None:
+    with pytest.raises(ValueError, match="safe_value_set cannot be empty"):
+        _convert_to_safe_value(5.0, [])
+
+
+def test_convert_to_safe_value_negative_values() -> None:
+    # Note that we won't use _convert_to_safe_value with negative values in practice but we test anyway
+    safe_values = [-5.0, -2.0, 0.0, 3.0, 8.0]
+    assert _convert_to_safe_value(-3.5, safe_values) == -5.0
+    assert _convert_to_safe_value(-3.4, safe_values) == -2.0
+    assert _convert_to_safe_value(-1.0, safe_values) == -2.0
+    assert _convert_to_safe_value(1.0, safe_values) == 0.0
+    assert _convert_to_safe_value(5.5, safe_values) == 3.0
