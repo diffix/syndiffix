@@ -158,7 +158,22 @@ df_synthetic = Synthesizer(df_original, pids=df_pid).sample()
 from syndiffix import SyndiffixBlobBuilder
 sbb = SyndiffixBlobBuilder(blob_name='blob_name', path_to_dir='blob_path')
 sbb.write(df_raw=df_original, pids=df_pid)
-df_synthetic = Synthesizer(df_original, pids=df_pids).sample()
+```
+
+### Declaring columns with "safe" (publicly known) values
+
+Often a column in a dataset contains values that are publicly known. These values do not need to be suppressed. Such columns can be declared with the `value_safe_columns` parameter. This parameter works with all data types. Only the values in the original column will appear in the corresponding synthetic data column. (In the case of floats with extreme precision, for instance 15 or more decimal places, the synthetic data values will be very close to the original data.)
+
+```py
+# Individual table usage
+from syndiffix import Synthesizer
+
+df_synthetic = Synthesizer(df_original, value_safe_columns=['safe_col1', 'safe_col2'])
+
+# Blob usage
+from syndiffix import SyndiffixBlobBuilder
+sbb = SyndiffixBlobBuilder(blob_name='blob_name', path_to_dir='blob_path')
+sbb.write(df_raw=df_original, value_safe_columns=['safe_col1', 'safe_col2'])
 ```
 
 ### Other parameters
