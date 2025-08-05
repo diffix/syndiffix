@@ -175,7 +175,7 @@ class Leaf(Node):
         yield from self.rows
 
     def print(self) -> None:
-        print(f"Leaf Node:")
+        print("Leaf Node:")
         print(f"  actual_intervals: {self.actual_intervals}")
         print(f"  snapped_intervals: {self.snapped_intervals}")
         print(f"  _noisy_count_cache: {self._noisy_count_cache}")
@@ -271,7 +271,7 @@ class Branch(Node):
             yield from child._matching_rows()
 
     def print(self) -> None:
-        print(f"Branch Node:")
+        print("Branch Node:")
         print(f"  actual_intervals: {self.actual_intervals}")
         print(f"  snapped_intervals: {self.snapped_intervals}")
         print(f"  _noisy_count_cache: {self._noisy_count_cache}")
