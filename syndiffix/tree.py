@@ -117,7 +117,8 @@ class Node(ABC):
             for row in self._matching_rows():
                 row_counter.add(self.context.pid_data[row])
 
-            min_count = anon_context.anonymization_params.low_count_params.low_threshold
+            # min_count = anon_context.anonymization_params.low_count_params.low_threshold
+            min_count = 1
             self._noisy_count_cache = max(row_counter.noisy_count(anon_context), min_count)
 
         return self._noisy_count_cache
