@@ -251,10 +251,10 @@ class StringConvertor(DataConvertor):
         assert self.scaler is not None
         if self.value_safe_flag is False and self.safe_values:
             # Convert normalized values back to original integer values
-            denormalized_safe_values = set()
+            denormalized_safe_values: Set[float] = set()
             for normalized_value in self.safe_values:
                 original_value = _inverse_normalize_value(float(normalized_value), self.scaler)
-                denormalized_safe_values.add(int(round(original_value)))
+                denormalized_safe_values.add(float(round(original_value)))
             self.safe_values = denormalized_safe_values
 
     def create_value_safe_set(self, values: pd.Series) -> None:
@@ -461,7 +461,8 @@ def generate_microdata(
     buckets: Buckets, convertors: list[DataConvertor], null_mappings: list[float], rng: Random
 ) -> list[MicrodataRow]:
     # print(buckets)      # Debugging line to see the buckets
-    [convertor.denormalize_safe_values() for convertor in convertors]
+    for convertor in convertors:
+        convertor.denormalize_safe_values()
     microdata_rows: list[MicrodataRow] = []
     for bucket in buckets:
         microdata_rows.extend(
