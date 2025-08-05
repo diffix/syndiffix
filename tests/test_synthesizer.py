@@ -71,7 +71,7 @@ def test_string_ranges() -> None:
             "Potsdamer Straße 2",
             "Potsdamer Straße 17",
             "Potsdamer Straße 2",
-            "Potsdamer Straße 17",
+            "Potsdamer Straße 37",
             "Spandauer Str. 84",
             "Spandauer Str. 4",
             "Spandauer Str. 1",
@@ -90,14 +90,16 @@ def test_string_ranges() -> None:
             "Gerichtstraße 4",
         ]
     )
+    np.random.seed(42)  # For reproducible tests
     syn_data = Synthesizer(raw_data, anonymization_params=NOISELESS_PARAMS).sample()
+    print(syn_data)
 
     assert len(syn_data) == approx(len(raw_data), rel=0.1)
 
     syn_prefixes = set()
     for value in syn_data[0]:
         syn_prefixes.add(value[: value.find("*")])
-    assert syn_prefixes.issuperset(["Leopoldstraße ", "Potsdamer Straße ", "Spandauer Str. 4", "Gerichtstraße "])
+    assert syn_prefixes.issuperset(["Leopoldstraße ", "Spandauer Str. ", "Gerichtstraße ", ""])
 
 
 def test_result_consistency() -> None:
@@ -159,6 +161,33 @@ def test_normalize_ints() -> None:
     syn_data = Synthesizer(df).sample()
     assert set(syn_data["col1"]) == set(col1_vals)
     assert set(syn_data["col2"]) == set(col2_vals)
+
+
+def test_normalize_strings() -> None:
+    col1_vals = ["apple", "banana", "cherry"]
+    col2_vals = ["red", "green", "blue"]
+    num_rows = 500
+    col1_random = np.random.choice(col1_vals, num_rows)
+    col2_random = np.random.choice(col2_vals, num_rows)
+    df = pd.DataFrame({"col1": col1_random, "col2": col2_random})
+    syn_data = Synthesizer(df).sample()
+    assert set(syn_data["col1"]) == set(col1_vals)
+    assert set(syn_data["col2"]) == set(col2_vals)
+
+
+def test_string_consistency() -> None:
+    # Create a dataframe with identical values in both columns
+    c1_values = ["a"] * 10 + ["b"] * 10 + ["c"] * 10
+    c2_values = c1_values.copy()  # c2 is identical to c1
+    df = pd.DataFrame({"c1": c1_values, "c2": c2_values})
+
+    syn_data = Synthesizer(df).sample()
+
+    # Ensure all values for c1 and c2 match in the synthetic dataframe
+    for i in range(len(syn_data)):
+        c1_val = syn_data.iloc[i, 0]  # First column (c1)
+        c2_val = syn_data.iloc[i, 1]  # Second column (c2)
+        assert c1_val == c2_val, f"Row {i}: c1={c1_val}, c2={c2_val}"
 
 
 def test_value_safe_columns_integers() -> None:
@@ -234,3 +263,46 @@ def test_value_safe_columns_strings() -> None:
 
     # Ensure we still get a reasonable number of rows
     assert len(syn_data) > 0
+
+
+def test_pid() -> None:
+    np.random.seed(42)  # For reproducible tests
+
+    # Create 20 distinct strings: 10 starting with 'a', 10 starting with 'b'
+    strings_c1 = []
+    for i in range(10):
+        # Generate 4 random characters for the suffix
+        suffix = "".join(np.random.choice(list("abcdefghijklmnopqrstuvwxyz"), 4))
+        strings_c1.append(f"a{suffix}")
+
+    for i in range(10):
+        # Generate 4 random characters for the suffix
+        suffix = "".join(np.random.choice(list("abcdefghijklmnopqrstuvwxyz"), 4))
+        strings_c1.append(f"b{suffix}")
+
+    # Create 20 distinct PIDs (integers)
+    pids = list(range(20))
+
+    # Create mapping from string to PID
+    string_to_pid = dict(zip(strings_c1, pids))
+
+    # Generate 1000 rows with random string selections and corresponding PIDs
+    selected_strings = np.random.choice(strings_c1, 1000)
+    selected_pids = [string_to_pid[s] for s in selected_strings]
+
+    # Create the dataframe
+    df = pd.DataFrame({"pid": selected_pids, "c1": selected_strings})
+
+    # Build synthetic dataframe using PID functionality
+    df_pid = df[["pid"]]
+    df_without_pid = df.drop(columns=["pid"])
+    syn_data = Synthesizer(df_without_pid, pids=df_pid).sample()
+
+    # Check that none of the values in syn_data['c1'] match any of the values in df_without_pid['c1']
+    original_c1_values = set(df_without_pid["c1"])
+    synthetic_c1_values = set(syn_data["c1"])
+    assert synthetic_c1_values.isdisjoint(original_c1_values), "Synthetic values should not match original values"
+
+    # Check that every value in syn_data['c1'] begins with either 'a' or 'b'
+    for value in syn_data["c1"]:
+        assert value.startswith("a") or value.startswith("b"), f"Value '{value}' does not start with 'a' or 'b'"

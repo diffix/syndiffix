@@ -174,6 +174,13 @@ class Leaf(Node):
     def _matching_rows(self) -> Iterator[RowId]:
         yield from self.rows
 
+    def print(self) -> None:
+        print("Leaf Node:")
+        print(f"  actual_intervals: {self.actual_intervals}")
+        print(f"  snapped_intervals: {self.snapped_intervals}")
+        print(f"  _noisy_count_cache: {self._noisy_count_cache}")
+        print(f"  rows: {self.rows}")
+
 
 class Branch(Node):
     def __init__(self, leaf: Leaf):
@@ -262,3 +269,32 @@ class Branch(Node):
     def _matching_rows(self) -> Iterator[RowId]:
         for child in self.children.values():
             yield from child._matching_rows()
+
+    def print(self) -> None:
+        print("Branch Node:")
+        print(f"  actual_intervals: {self.actual_intervals}")
+        print(f"  snapped_intervals: {self.snapped_intervals}")
+        print(f"  _noisy_count_cache: {self._noisy_count_cache}")
+
+
+def _dump_tree(node: Node, indent: int = 0) -> None:
+    """Display the tree structure with directory-like indentation."""
+    indent_str = "  " * indent
+
+    # Format snapped_interval as [(min, max), (min, max), ...]
+    intervals_str = ", ".join(f"({interval.min}, {interval.max})" for interval in node.snapped_intervals)
+
+    # Get row count
+    if isinstance(node, Leaf):
+        row_count = len(node.rows)
+    else:  # Branch
+        row_count = len(list(node._matching_rows()))
+
+    # Print this node's info
+    print(f"{indent_str}[{intervals_str}] rows: {row_count}")
+
+    # Recursively print children if this is a Branch
+    if isinstance(node, Branch):
+        for child_index in sorted(node.children.keys()):
+            child = node.children[child_index]
+            _dump_tree(child, indent + 1)
