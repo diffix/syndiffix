@@ -58,6 +58,9 @@ class DataConvertor(ABC):
     def analyze_tree(self, root: Node) -> None:
         pass
 
+    def denormalize_safe_values(self) -> None:
+        pass
+
 
 class BooleanConvertor(DataConvertor):
     def __init__(self) -> None:
@@ -71,7 +74,7 @@ class BooleanConvertor(DataConvertor):
         return 1.0 if value else 0.0
 
     def from_interval(self, interval: Interval, rng: Random) -> MicrodataValue:
-        value = _generate_float(interval, rng) >= 0.5
+        value = _generate_random_float(interval, rng) >= 0.5
         return (value, 1.0 if value else 0.0)
 
     def create_value_safe_set(self, values: pd.Series) -> None:
@@ -84,7 +87,8 @@ class RealConvertor(DataConvertor):
         super().__init__()
         # Fit up to 0.9999 so that the max bucket range is [0-1)
         self.scaler = MinMaxScaler(feature_range=(0.0, 0.9999))  # type: ignore
-        # This value-neutral fitting is only for passing unit tests.
+        # This value-neutral fitting is only for passing unit tests, gets overridden 
+        # later by fit_transform().
         self.scaler.fit(np.array([[0.0], [0.9999]]))
         self.final_round_precision = _get_round_precision(cast(Iterable[float], values))
 
@@ -96,7 +100,7 @@ class RealConvertor(DataConvertor):
         return round(float(value), self.final_round_precision)
 
     def from_interval(self, interval: Interval, rng: Random) -> MicrodataValue:
-        value = _generate_float(interval, rng)
+        value = _generate_random_float(interval, rng)
         if self.value_safe_flag is True:
             value = _convert_to_safe_value(value, self.safe_values)
         assert self.scaler is not None
@@ -115,7 +119,8 @@ class IntegerConvertor(DataConvertor):
         super().__init__()
         # Fit up to 0.9999 so that the max bucket range is [0-1)
         self.scaler = MinMaxScaler(feature_range=(0.0, 0.9999))  # type: ignore
-        # This value-neutral fitting is only for passing unit tests.
+        # This value-neutral fitting is only for passing unit tests, gets overridden 
+        # later by fit_transform().
         self.scaler.fit(np.array([[0.0], [0.9999]]))
 
     def column_type(self) -> ColumnType:
@@ -126,7 +131,7 @@ class IntegerConvertor(DataConvertor):
         return float(value)
 
     def from_interval(self, interval: Interval, rng: Random) -> MicrodataValue:
-        value = _generate_float(interval, rng)
+        value = _generate_random_float(interval, rng)
         if self.value_safe_flag is True:
             value = _convert_to_safe_value(value, self.safe_values)
         assert self.scaler is not None
@@ -144,7 +149,8 @@ class TimestampConvertor(DataConvertor):
         super().__init__()
         # Fit up to 0.9999 so that the max bucket range is [0-1)
         self.scaler = MinMaxScaler(feature_range=(0.0, 0.9999))  # type: ignore
-        # This value-neutral fitting is only for passing unit tests.
+        # This value-neutral fitting is only for passing unit tests, gets overridden 
+        # later by fit_transform().
         self.scaler.fit(np.array([[0.0], [0.9999]]))
 
     def column_type(self) -> ColumnType:
@@ -156,7 +162,7 @@ class TimestampConvertor(DataConvertor):
         return float((value - TIMESTAMP_REFERENCE) / pd.Timedelta(1, "s"))
 
     def from_interval(self, interval: Interval, rng: Random) -> MicrodataValue:
-        value = _generate_float(interval, rng)
+        value = _generate_random_float(interval, rng)
         if self.value_safe_flag is True:
             value = _convert_to_safe_value(value, self.safe_values)
         assert self.scaler is not None
@@ -177,19 +183,30 @@ class StringConvertor(DataConvertor):
             if not isinstance(value, str):
                 raise TypeError(f"Not a `str` object in a string dtype column: {value}.")
         self.value_map = sorted(cast(Set[str], unique_values))
+
         # Note that self.safe_values is only used if self.value_safe_flag is False
-        self.safe_values: Set[int] = set()
+        self.safe_values: Set[float] = set()
+        # Fit up to 0.9999 so that the max bucket range is [0-1)
+        self.scaler = MinMaxScaler(feature_range=(0.0, 0.9999))  # type: ignore
+        # This value-neutral fitting is only for passing unit tests, gets overridden 
+        # later by fit_transform().
+        self.scaler.fit(np.array([[0.0], [0.9999]]))
 
     def column_type(self) -> ColumnType:
         return ColumnType.STRING
 
     def to_float(self, value: Value) -> float:
+        # Note that value here is the string itself, not an index.
         index = bisect_left(self.value_map, cast(str, value))
         assert index >= 0 and index < len(self.value_map)
         return float(index)
 
     def from_interval(self, interval: Interval, rng: Random) -> MicrodataValue:
+        assert self.scaler is not None
+        interval = _find_encapsulated_integer_interval(interval, self.scaler)
+        # From here on intervals are integers (cast as float)
         if interval.is_singularity():
+            # convert to integer for value_map
             return (self.value_map[int(interval.min)], interval.min)
         else:
             return self._map_interval(interval, rng)
@@ -220,19 +237,32 @@ class StringConvertor(DataConvertor):
                 # Avoid the cost of maintaining safe_values if in any
                 # event all values are safe (i.e. self.value_safe_flag is True)
                 if self.value_safe_flag is False and node.is_singularity() and node.is_over_threshold(low_threshold):
-                    self.safe_values.add(int(node.actual_intervals[0].min))
+                    # Note that the values here are normalized
+                    self.safe_values.add(float(node.actual_intervals[0].min))
             elif isinstance(node, Branch):
                 for child_node in node.children.values():
                     analyze_tree_walk(child_node)
 
         analyze_tree_walk(root)
+        #from .tree import _dump_tree
+        #_dump_tree(root)       # Debugging line to see the tree structure
+
+    def denormalize_safe_values(self) -> None:
+        assert self.scaler is not None
+        if self.value_safe_flag is False and self.safe_values:
+            # Convert normalized values back to original integer values
+            denormalized_safe_values = set()
+            for normalized_value in self.safe_values:
+                original_value = _inverse_normalize_value(float(normalized_value), self.scaler)
+                denormalized_safe_values.add(int(round(original_value)))
+            self.safe_values = denormalized_safe_values
 
     def create_value_safe_set(self, values: pd.Series) -> None:
         # Not needed
         pass
 
 
-def _generate_float(interval: Interval, rng: Random) -> float:
+def _generate_random_float(interval: Interval, rng: Random) -> float:
     return rng.uniform(interval.min, interval.max)
 
 
@@ -326,6 +356,64 @@ def _inverse_normalize_value(value: float, scaler: MinMaxScaler) -> float:
     return float(inverse_transformed_value)
 
 
+def _find_encapsulated_integer_interval(interval: Interval, scaler: MinMaxScaler) -> Interval:
+    """
+    Find the largest interval within the given interval where the inverse-transformed
+    bounds correspond to integers (within machine precision).
+    
+    Args:
+        interval: The input interval in normalized space
+        scaler: The MinMaxScaler used for inverse transformation
+        
+    Returns:
+        A new interval with bounds that are integer values (cast as floats)
+    """
+    interval_new = interval.copy()
+    
+    # Handle singularity case - bounds are already at the same point
+    if interval.is_singularity():
+        # Convert the single value to its corresponding integer
+        inverse_value = _inverse_normalize_value(interval.min, scaler)
+        integer_value = float(round(inverse_value))
+        interval_new.min = integer_value
+        interval_new.max = integer_value
+        return interval_new
+    
+    # Find the smallest integer >= the inverse-transformed interval.min
+    min_inverse = _inverse_normalize_value(interval.min, scaler)
+    min_integer = int(round(min_inverse))
+    
+    # If the current min already transforms to an integer (within precision), use it
+    if abs(min_inverse - min_integer) < 1e-10:
+        interval_new.min = float(min_integer)
+    else:
+        # Find the next integer
+        next_integer = min_integer + 1 if min_inverse > min_integer else min_integer
+        interval_new.min = float(next_integer)
+    
+    # Find the largest integer <= the inverse-transformed interval.max
+    max_inverse = _inverse_normalize_value(interval.max, scaler)
+    max_integer = int(round(max_inverse))
+    
+    # Note that the max value of an Interval is exclusive, so we need to take care
+    if abs(max_inverse - max_integer) < 1e-10:
+        # If this is exact, then it will be included in the next higher min_integer
+        interval_new.max = float(max_integer)
+    else:
+        # Find the previous integer
+        prev_integer = max_integer - 1 if max_inverse < max_integer else max_integer
+        # We add 1.0 because the max value is exclusive
+        interval_new.max = float(prev_integer + 1.0)
+    
+    # Ensure the new interval is valid (min <= max)
+    if interval_new.min > interval_new.max:
+        # If no valid integer interval exists within bounds, throw an exception
+        raise ValueError(f"No valid integer interval exists within bounds. "
+                        f"Min integer: {interval_new.min}, Max integer: {interval_new.max}")
+    
+    return interval_new
+
+
 def _normalize(values: pd.Series, scaler: Optional[MinMaxScaler]) -> pd.Series:
     if scaler is None:
         # Convertors that don't need normalization
@@ -370,6 +458,8 @@ def apply_convertors(convertors: list[DataConvertor], raw_data: pd.DataFrame) ->
 def generate_microdata(
     buckets: Buckets, convertors: list[DataConvertor], null_mappings: list[float], rng: Random
 ) -> list[MicrodataRow]:
+    #print(buckets)      # Debugging line to see the buckets
+    [convertor.denormalize_safe_values() for convertor in convertors]
     microdata_rows: list[MicrodataRow] = []
     for bucket in buckets:
         microdata_rows.extend(
@@ -414,5 +504,4 @@ def make_value_safe_columns_array(df: pd.DataFrame, value_safe_columns: list[int
             # Use column index directly
             result[column] = True
 
-    return result
     return result
