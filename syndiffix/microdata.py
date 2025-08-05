@@ -87,7 +87,7 @@ class RealConvertor(DataConvertor):
         super().__init__()
         # Fit up to 0.9999 so that the max bucket range is [0-1)
         self.scaler = MinMaxScaler(feature_range=(0.0, 0.9999))  # type: ignore
-        # This value-neutral fitting is only for passing unit tests, gets overridden 
+        # This value-neutral fitting is only for passing unit tests, gets overridden
         # later by fit_transform().
         self.scaler.fit(np.array([[0.0], [0.9999]]))
         self.final_round_precision = _get_round_precision(cast(Iterable[float], values))
@@ -119,7 +119,7 @@ class IntegerConvertor(DataConvertor):
         super().__init__()
         # Fit up to 0.9999 so that the max bucket range is [0-1)
         self.scaler = MinMaxScaler(feature_range=(0.0, 0.9999))  # type: ignore
-        # This value-neutral fitting is only for passing unit tests, gets overridden 
+        # This value-neutral fitting is only for passing unit tests, gets overridden
         # later by fit_transform().
         self.scaler.fit(np.array([[0.0], [0.9999]]))
 
@@ -149,7 +149,7 @@ class TimestampConvertor(DataConvertor):
         super().__init__()
         # Fit up to 0.9999 so that the max bucket range is [0-1)
         self.scaler = MinMaxScaler(feature_range=(0.0, 0.9999))  # type: ignore
-        # This value-neutral fitting is only for passing unit tests, gets overridden 
+        # This value-neutral fitting is only for passing unit tests, gets overridden
         # later by fit_transform().
         self.scaler.fit(np.array([[0.0], [0.9999]]))
 
@@ -188,7 +188,7 @@ class StringConvertor(DataConvertor):
         self.safe_values: Set[float] = set()
         # Fit up to 0.9999 so that the max bucket range is [0-1)
         self.scaler = MinMaxScaler(feature_range=(0.0, 0.9999))  # type: ignore
-        # This value-neutral fitting is only for passing unit tests, gets overridden 
+        # This value-neutral fitting is only for passing unit tests, gets overridden
         # later by fit_transform().
         self.scaler.fit(np.array([[0.0], [0.9999]]))
 
@@ -244,8 +244,8 @@ class StringConvertor(DataConvertor):
                     analyze_tree_walk(child_node)
 
         analyze_tree_walk(root)
-        #from .tree import _dump_tree
-        #_dump_tree(root)       # Debugging line to see the tree structure
+        # from .tree import _dump_tree
+        # _dump_tree(root)       # Debugging line to see the tree structure
 
     def denormalize_safe_values(self) -> None:
         assert self.scaler is not None
@@ -360,16 +360,16 @@ def _find_encapsulated_integer_interval(interval: Interval, scaler: MinMaxScaler
     """
     Find the largest interval within the given interval where the inverse-transformed
     bounds correspond to integers (within machine precision).
-    
+
     Args:
         interval: The input interval in normalized space
         scaler: The MinMaxScaler used for inverse transformation
-        
+
     Returns:
         A new interval with bounds that are integer values (cast as floats)
     """
     interval_new = interval.copy()
-    
+
     # Handle singularity case - bounds are already at the same point
     if interval.is_singularity():
         # Convert the single value to its corresponding integer
@@ -378,11 +378,11 @@ def _find_encapsulated_integer_interval(interval: Interval, scaler: MinMaxScaler
         interval_new.min = integer_value
         interval_new.max = integer_value
         return interval_new
-    
+
     # Find the smallest integer >= the inverse-transformed interval.min
     min_inverse = _inverse_normalize_value(interval.min, scaler)
     min_integer = int(round(min_inverse))
-    
+
     # If the current min already transforms to an integer (within precision), use it
     if abs(min_inverse - min_integer) < 1e-10:
         interval_new.min = float(min_integer)
@@ -390,11 +390,11 @@ def _find_encapsulated_integer_interval(interval: Interval, scaler: MinMaxScaler
         # Find the next integer
         next_integer = min_integer + 1 if min_inverse > min_integer else min_integer
         interval_new.min = float(next_integer)
-    
+
     # Find the largest integer <= the inverse-transformed interval.max
     max_inverse = _inverse_normalize_value(interval.max, scaler)
     max_integer = int(round(max_inverse))
-    
+
     # Note that the max value of an Interval is exclusive, so we need to take care
     if abs(max_inverse - max_integer) < 1e-10:
         # If this is exact, then it will be included in the next higher min_integer
@@ -404,13 +404,15 @@ def _find_encapsulated_integer_interval(interval: Interval, scaler: MinMaxScaler
         prev_integer = max_integer - 1 if max_inverse < max_integer else max_integer
         # We add 1.0 because the max value is exclusive
         interval_new.max = float(prev_integer + 1.0)
-    
+
     # Ensure the new interval is valid (min <= max)
     if interval_new.min > interval_new.max:
         # If no valid integer interval exists within bounds, throw an exception
-        raise ValueError(f"No valid integer interval exists within bounds. "
-                        f"Min integer: {interval_new.min}, Max integer: {interval_new.max}")
-    
+        raise ValueError(
+            f"No valid integer interval exists within bounds. "
+            f"Min integer: {interval_new.min}, Max integer: {interval_new.max}"
+        )
+
     return interval_new
 
 
@@ -458,7 +460,7 @@ def apply_convertors(convertors: list[DataConvertor], raw_data: pd.DataFrame) ->
 def generate_microdata(
     buckets: Buckets, convertors: list[DataConvertor], null_mappings: list[float], rng: Random
 ) -> list[MicrodataRow]:
-    #print(buckets)      # Debugging line to see the buckets
+    # print(buckets)      # Debugging line to see the buckets
     [convertor.denormalize_safe_values() for convertor in convertors]
     microdata_rows: list[MicrodataRow] = []
     for bucket in buckets:

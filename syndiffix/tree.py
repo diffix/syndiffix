@@ -280,19 +280,19 @@ class Branch(Node):
 def _dump_tree(node: Node, indent: int = 0) -> None:
     """Display the tree structure with directory-like indentation."""
     indent_str = "  " * indent
-    
+
     # Format snapped_interval as [(min, max), (min, max), ...]
     intervals_str = ", ".join(f"({interval.min}, {interval.max})" for interval in node.snapped_intervals)
-    
+
     # Get row count
     if isinstance(node, Leaf):
         row_count = len(node.rows)
     else:  # Branch
         row_count = len(list(node._matching_rows()))
-    
+
     # Print this node's info
     print(f"{indent_str}[{intervals_str}] rows: {row_count}")
-    
+
     # Recursively print children if this is a Branch
     if isinstance(node, Branch):
         for child_index in sorted(node.children.keys()):

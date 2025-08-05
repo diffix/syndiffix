@@ -177,12 +177,12 @@ def test_normalize_strings() -> None:
 
 def test_string_consistency() -> None:
     # Create a dataframe with identical values in both columns
-    c1_values = ['a'] * 10 + ['b'] * 10 + ['c'] * 10
+    c1_values = ["a"] * 10 + ["b"] * 10 + ["c"] * 10
     c2_values = c1_values.copy()  # c2 is identical to c1
     df = pd.DataFrame({"c1": c1_values, "c2": c2_values})
-    
+
     syn_data = Synthesizer(df).sample()
-    
+
     # Ensure all values for c1 and c2 match in the synthetic dataframe
     for i in range(len(syn_data)):
         c1_val = syn_data.iloc[i, 0]  # First column (c1)
@@ -267,42 +267,42 @@ def test_value_safe_columns_strings() -> None:
 
 def test_pid() -> None:
     np.random.seed(42)  # For reproducible tests
-    
+
     # Create 20 distinct strings: 10 starting with 'a', 10 starting with 'b'
     strings_c1 = []
     for i in range(10):
         # Generate 4 random characters for the suffix
-        suffix = ''.join(np.random.choice(list('abcdefghijklmnopqrstuvwxyz'), 4))
-        strings_c1.append(f'a{suffix}')
-    
+        suffix = "".join(np.random.choice(list("abcdefghijklmnopqrstuvwxyz"), 4))
+        strings_c1.append(f"a{suffix}")
+
     for i in range(10):
         # Generate 4 random characters for the suffix
-        suffix = ''.join(np.random.choice(list('abcdefghijklmnopqrstuvwxyz'), 4))
-        strings_c1.append(f'b{suffix}')
-    
+        suffix = "".join(np.random.choice(list("abcdefghijklmnopqrstuvwxyz"), 4))
+        strings_c1.append(f"b{suffix}")
+
     # Create 20 distinct PIDs (integers)
     pids = list(range(20))
-    
+
     # Create mapping from string to PID
     string_to_pid = dict(zip(strings_c1, pids))
-    
+
     # Generate 1000 rows with random string selections and corresponding PIDs
     selected_strings = np.random.choice(strings_c1, 1000)
     selected_pids = [string_to_pid[s] for s in selected_strings]
-    
+
     # Create the dataframe
     df = pd.DataFrame({"pid": selected_pids, "c1": selected_strings})
-    
+
     # Build synthetic dataframe using PID functionality
     df_pid = df[["pid"]]
     df_without_pid = df.drop(columns=["pid"])
     syn_data = Synthesizer(df_without_pid, pids=df_pid).sample()
-    
+
     # Check that none of the values in syn_data['c1'] match any of the values in df_without_pid['c1']
-    original_c1_values = set(df_without_pid['c1'])
-    synthetic_c1_values = set(syn_data['c1'])
+    original_c1_values = set(df_without_pid["c1"])
+    synthetic_c1_values = set(syn_data["c1"])
     assert synthetic_c1_values.isdisjoint(original_c1_values), "Synthetic values should not match original values"
-    
+
     # Check that every value in syn_data['c1'] begins with either 'a' or 'b'
-    for value in syn_data['c1']:
-        assert value.startswith('a') or value.startswith('b'), f"Value '{value}' does not start with 'a' or 'b'"
+    for value in syn_data["c1"]:
+        assert value.startswith("a") or value.startswith("b"), f"Value '{value}' does not start with 'a' or 'b'"
