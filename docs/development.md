@@ -10,6 +10,9 @@ Activate `poetry` environment: `poetry shell`. (can skip, then prepend `poetry r
 - Test: `pytest .`
 - Check: `flake8 . && mypy . && black --check . && isort . --check`
 
+ To filter out acceptable lines:
+     `poetry run flake8 . | findstr /v "E501" | findstr /v "F405" | findstr /v "F403"`
+
 ### Creating a new release
 
 First, update the project's version by editing the `[tool.poetry]` section from the `pyproject.toml` file.

@@ -111,6 +111,7 @@ class Synthesizer(object):
             counters_factory,
             pids,
             apply_convertors(self.column_convertors, raw_data),
+            value_safe_columns_array=self.value_safe_columns_array,
         )
 
         self.clusters, self.entropy_1dim = clustering.build_clusters(self.forest)
