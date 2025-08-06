@@ -24,6 +24,7 @@ class Context:
     bucketization_params: BucketizationParams
     row_limit: int
     counters_factory: CountersFactory
+    value_safe_flag: bool
 
 
 Subnodes = tuple[Union["Node", None], ...]
@@ -46,6 +47,9 @@ class Node(ABC):
 
     def dimensions(self) -> int:
         return len(self.context.combination)
+
+    def value_is_safe(self) -> bool:
+        return self.context.value_safe_flag
 
     def update_pids(self, row: RowId) -> None:
         self.entity_counter.add(self.context.pid_data[row])
@@ -148,7 +152,7 @@ class Leaf(Node):
             (depth <= depth_threshold or len(self.rows) >= self.context.row_limit)
             and not self.is_stub
             and not self.is_singularity()
-            and self.is_over_threshold(low_threshold)
+            and (self.is_over_threshold(low_threshold) or self.value_is_safe())
         )
 
     def add_row(self, depth: int, row: RowId) -> Node:

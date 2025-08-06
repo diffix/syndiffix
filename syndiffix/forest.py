@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import random
+from typing import Optional
 
 import numpy as np
 import numpy.typing as npt
@@ -31,12 +32,17 @@ class Forest:
         counters_factory: CountersFactory,
         pids: DataFrame,
         data: DataFrame,
+        value_safe_columns_array: Optional[list[bool]] = None,
     ) -> None:
         self.anonymization_params = anonymization_params
         self.bucketization_params = bucketization_params
         self.counters_factory = counters_factory
         self.orig_pids = pids
         self.orig_data = data
+        if value_safe_columns_array is None:
+            self.value_safe_columns_array = [False] * len(data.columns)
+        else:
+            self.value_safe_columns_array = value_safe_columns_array
         self.unsafe_rng = random.Random(0)
 
         assert len(pids) == len(data)
@@ -73,7 +79,7 @@ class Forest:
         snapped_intervals = list(self.snapped_intervals)
         for i in range(self.dimensions):
             combination = (ColumnId(i),)
-            tree = self._build_tree(combination).push_down_1dim_root()
+            tree = self._build_tree(combination, self.value_safe_columns_array[i]).push_down_1dim_root()
             snapped_intervals[i] = tree.snapped_intervals[0]
             self._tree_cache[combination] = tree  # Cache the flattened version of the tree.
         self.snapped_intervals = tuple(snapped_intervals)
@@ -86,7 +92,7 @@ class Forest:
             for sub_combination in sub_combinations
         )
 
-    def _build_tree(self, combination: Combination) -> Node:
+    def _build_tree(self, combination: Combination, value_safe_flag: bool = False) -> Node:
         subnodes = self._get_subnodes(combination)
 
         # Hash column names into the tree's base bucket seed.
@@ -112,6 +118,7 @@ class Forest:
             self.bucketization_params,
             row_limit,
             self.counters_factory,
+            value_safe_flag,
         )
 
         root_intervals = get_items_combination(combination, self.snapped_intervals)

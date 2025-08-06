@@ -202,7 +202,7 @@ def _refine_buckets(node: Node, harvested_nodes: BucketsCache, count: int, unsaf
 
 def _harvest_leaf(leaf: Leaf, harvested_nodes: BucketsCache, unsafe_rng: Random) -> Buckets:
     low_threshold = leaf.context.anonymization_context.anonymization_params.low_count_params.low_threshold
-    if leaf.is_over_threshold(low_threshold):
+    if leaf.is_over_threshold(low_threshold) or leaf.value_is_safe():
         if leaf.is_singularity() or leaf.dimensions() == 1:
             return [Bucket(tuple(leaf.bucket_intervals()), leaf.noisy_count())]
         else:
