@@ -34,7 +34,7 @@ class Clusters:
     derived_clusters: list[DerivedCluster]
 
 
-TreeMaterializer = Callable[[Forest, list[ColumnId]], tuple[list[MicrodataRow], Combination]]
+TreeBuilder = Callable[[Forest, list[ColumnId]], None]
 
 TableMaterializer = Callable[[Forest, list[ColumnId]], tuple[list[MicrodataRow], Combination]]
 

@@ -376,6 +376,13 @@ def _stitch(
         return _do_stitch(forest, metadata, left, right, derived_cluster)
 
 
+def build_forest(tree_builder: TreeBuilder, forest: Forest, clusters: Clusters) -> None:
+    tree_builder(forest, clusters.initial_cluster)
+    for derived_cluster in clusters.derived_clusters:
+        (_, stitch_columns, derived_columns) = derived_cluster
+        tree_builder(forest, stitch_columns + derived_columns)
+
+
 def build_table(
     materialize_table: TableMaterializer, forest: Forest, metadata: StitchingMetadata, clusters: Clusters
 ) -> tuple[list[Row], Combination]:
