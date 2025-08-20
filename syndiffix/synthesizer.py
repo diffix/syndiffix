@@ -9,7 +9,7 @@ from appdirs import user_config_dir
 
 from .bucket import harvest
 from .clustering.common import MicrodataRow
-from .clustering.stitching import StitchingMetadata, build_table
+from .clustering.stitching import StitchingMetadata, build_forest, build_table
 from .clustering.strategy import ClusteringStrategy, DefaultClustering, MlClustering
 from .common import *
 from .counters import (
@@ -118,8 +118,19 @@ class Synthesizer(object):
         for col_id, converter in enumerate(self.column_convertors):
             converter.analyze_tree(self.forest.get_tree((ColumnId(col_id),)))
 
+        def tree_builder(forest: Forest, columns: list[ColumnId]) -> None:
+            combination = tuple(sorted(columns))
+            # get_tree builds the trees (except 1dim, which have already been built)
+            _ = forest.get_tree(combination)
+
+        build_forest(
+            tree_builder,
+            self.forest,
+            self.clusters,
+        )
+
     def sample(self) -> pd.DataFrame:
-        def materialize_tree(forest: Forest, columns: list[ColumnId]) -> tuple[list[MicrodataRow], Combination]:
+        def materialize_table(forest: Forest, columns: list[ColumnId]) -> tuple[list[MicrodataRow], Combination]:
             combination = tuple(sorted(columns))
             tree = forest.get_tree(combination)
             buckets = harvest(tree, self.forest.derive_unsafe_rng())
@@ -134,7 +145,7 @@ class Synthesizer(object):
             )
 
         rows, root_combination = build_table(
-            materialize_tree,
+            materialize_table,
             self.forest,
             StitchingMetadata(self.column_is_integral, self.entropy_1dim),
             self.clusters,

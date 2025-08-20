@@ -360,7 +360,7 @@ def _do_patch(
 
 
 def _stitch(
-    materialize_tree: TreeMaterializer,
+    materialize_table: TableMaterializer,
     forest: Forest,
     metadata: StitchingMetadata,
     left: tuple[list[MicrodataRow], Combination],
@@ -368,7 +368,7 @@ def _stitch(
 ) -> tuple[list[MicrodataRow], Combination]:
     (_, stitch_columns, derived_columns) = derived_cluster
 
-    right = materialize_tree(forest, stitch_columns + derived_columns)
+    right = materialize_table(forest, stitch_columns + derived_columns)
 
     if len(stitch_columns) == 0:
         return _do_patch(forest.unsafe_rng, left, right)
@@ -376,13 +376,20 @@ def _stitch(
         return _do_stitch(forest, metadata, left, right, derived_cluster)
 
 
+def build_forest(tree_builder: TreeBuilder, forest: Forest, clusters: Clusters) -> None:
+    tree_builder(forest, clusters.initial_cluster)
+    for derived_cluster in clusters.derived_clusters:
+        (_, stitch_columns, derived_columns) = derived_cluster
+        tree_builder(forest, stitch_columns + derived_columns)
+
+
 def build_table(
-    materialize_tree: TreeMaterializer, forest: Forest, metadata: StitchingMetadata, clusters: Clusters
+    materialize_table: TableMaterializer, forest: Forest, metadata: StitchingMetadata, clusters: Clusters
 ) -> tuple[list[Row], Combination]:
-    acc = materialize_tree(forest, clusters.initial_cluster)
+    acc = materialize_table(forest, clusters.initial_cluster)
 
     for derived_cluster in clusters.derived_clusters:
-        acc = _stitch(materialize_tree, forest, metadata, acc, derived_cluster)
+        acc = _stitch(materialize_table, forest, metadata, acc, derived_cluster)
 
     rows, columns = acc
     return [microdata_row_to_row(row) for row in rows], columns

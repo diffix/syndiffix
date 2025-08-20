@@ -35,7 +35,7 @@ def test_stitching() -> None:
         (ColumnId(2), ColumnId(3)): _build_rows(col_c_right, col_d),
     }
 
-    def materialize_tree(_forest: Forest, columns: list[ColumnId]) -> tuple[list[MicrodataRow], Combination]:
+    def materialize_table(_forest: Forest, columns: list[ColumnId]) -> tuple[list[MicrodataRow], Combination]:
         combination = tuple(sorted(columns))
         return (microtables[combination], combination)
 
@@ -47,7 +47,7 @@ def test_stitching() -> None:
         ],
     )
 
-    rows, combination = build_table(materialize_tree, forest, _dummy_metadata(4), clusters)
+    rows, combination = build_table(materialize_table, forest, _dummy_metadata(4), clusters)
 
     assert combination == (0, 1, 2, 3)
     assert rows == [
@@ -67,7 +67,7 @@ def test_stitching() -> None:
 def test_empty_microtables() -> None:
     forest = load_forest("dummy.csv")
 
-    def materialize_tree(_forest: Forest, columns: list[ColumnId]) -> tuple[list[MicrodataRow], Combination]:
+    def materialize_table(_forest: Forest, columns: list[ColumnId]) -> tuple[list[MicrodataRow], Combination]:
         combination = tuple(sorted(columns))
         return ([], combination)
 
@@ -78,7 +78,7 @@ def test_empty_microtables() -> None:
         ],
     )
 
-    rows, combination = build_table(materialize_tree, forest, _dummy_metadata(3), clusters)
+    rows, combination = build_table(materialize_table, forest, _dummy_metadata(3), clusters)
 
     assert combination == (0, 1, 2)
     assert rows == []
@@ -98,7 +98,7 @@ def test_patching() -> None:
         (ColumnId(3),): _build_rows(col_d),
     }
 
-    def materialize_tree(_forest: Forest, columns: list[ColumnId]) -> tuple[list[MicrodataRow], Combination]:
+    def materialize_table(_forest: Forest, columns: list[ColumnId]) -> tuple[list[MicrodataRow], Combination]:
         combination = tuple(sorted(columns))
         return (microtables[combination], combination)
 
@@ -110,7 +110,7 @@ def test_patching() -> None:
         ],
     )
 
-    rows, combination = build_table(materialize_tree, forest, _dummy_metadata(4), clusters)
+    rows, combination = build_table(materialize_table, forest, _dummy_metadata(4), clusters)
 
     assert combination == (0, 1, 2, 3)
     assert rows == [

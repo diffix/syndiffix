@@ -306,3 +306,32 @@ def test_pid() -> None:
     # Check that every value in syn_data['c1'] begins with either 'a' or 'b'
     for value in syn_data["c1"]:
         assert value.startswith("a") or value.startswith("b"), f"Value '{value}' does not start with 'a' or 'b'"
+
+
+def test_tree_builder() -> None:
+    # Create a dataframe with three columns
+    np.random.seed(42)  # For reproducible tests
+    df = pd.DataFrame(
+        {
+            "col1": np.random.choice(["A", "B", "C"], size=100),
+            "col2": np.random.randint(0, 10, size=100),
+            "col3": np.random.uniform(0, 1, size=100),
+        }
+    )
+
+    # Create synthesizer (this should build all trees)
+    syn = Synthesizer(df)
+
+    # Import necessary types for combinations
+    from itertools import combinations
+
+    from syndiffix.common import ColumnId
+
+    # Test all possible combinations of columns (1, 2, and 3 columns)
+    column_indices = [ColumnId(0), ColumnId(1), ColumnId(2)]  # Indices for col1, col2, col3
+
+    for r in range(1, 4):  # 1, 2, and 3 columns
+        for combination in combinations(column_indices, r):
+            # Convert to tuple as expected by the tree cache
+            tree = syn.forest._tree_cache.get(combination)
+            assert tree is not None, f"Tree not found for combination {combination}"
