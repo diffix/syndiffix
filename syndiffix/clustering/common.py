@@ -24,6 +24,7 @@ class StitchOwner(Enum):
 
 
 # Owner, Stitch columns, Derived columns
+# The total set of columns is Stitch+Derived.
 DerivedCluster = tuple[StitchOwner, list[ColumnId], list[ColumnId]]
 
 
@@ -34,6 +35,8 @@ class Clusters:
 
 
 TreeMaterializer = Callable[[Forest, list[ColumnId]], tuple[list[MicrodataRow], Combination]]
+
+TableMaterializer = Callable[[Forest, list[ColumnId]], tuple[list[MicrodataRow], Combination]]
 
 
 def microdata_row_to_row(microdata_row: MicrodataRow) -> Row:

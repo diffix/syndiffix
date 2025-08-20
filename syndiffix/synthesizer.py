@@ -119,7 +119,7 @@ class Synthesizer(object):
             converter.analyze_tree(self.forest.get_tree((ColumnId(col_id),)))
 
     def sample(self) -> pd.DataFrame:
-        def materialize_tree(forest: Forest, columns: list[ColumnId]) -> tuple[list[MicrodataRow], Combination]:
+        def materialize_table(forest: Forest, columns: list[ColumnId]) -> tuple[list[MicrodataRow], Combination]:
             combination = tuple(sorted(columns))
             tree = forest.get_tree(combination)
             buckets = harvest(tree, self.forest.derive_unsafe_rng())
@@ -134,7 +134,7 @@ class Synthesizer(object):
             )
 
         rows, root_combination = build_table(
-            materialize_tree,
+            materialize_table,
             self.forest,
             StitchingMetadata(self.column_is_integral, self.entropy_1dim),
             self.clusters,
