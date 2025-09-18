@@ -204,7 +204,7 @@ def test_quality_str_str() -> None:
     assert orig_contingency.shape[1] <= syn_contingency.shape[1], "Missing types in synthetic data"
 
     # Calculate Cramér's V (measure of association between categorical variables)
-    def cramers_v(contingency_table):
+    def cramers_v(contingency_table: pd.DataFrame) -> float:
         chi2, _, _, _ = chi2_contingency(contingency_table)
         n = contingency_table.sum().sum()
         min_dim = min(contingency_table.shape) - 1
@@ -218,6 +218,12 @@ def test_quality_str_str() -> None:
 
     orig_aligned = orig_contingency.loc[list(common_groups), list(common_types)]
     syn_aligned = syn_contingency.loc[list(common_groups), list(common_types)]
+
+    # Ensure arguments are always DataFrames
+    if isinstance(orig_aligned, pd.Series):
+        orig_aligned = orig_aligned.to_frame().T
+    if isinstance(syn_aligned, pd.Series):
+        syn_aligned = syn_aligned.to_frame().T
 
     orig_cramers_v = cramers_v(orig_aligned)
     syn_cramers_v = cramers_v(syn_aligned)
