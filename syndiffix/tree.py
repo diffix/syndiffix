@@ -285,16 +285,16 @@ class Branch(Node):
 def tree_walker(node: Node) -> Iterator[Node]:
     """
     Walk through every node in the tree, yielding the current node and all descendants.
-    
+
     Args:
         node: The root node to start walking from
-        
+
     Yields:
         Every node in the tree including the starting node
     """
     # Yield the current node first
     yield node
-    
+
     # Recursively yield children if this is a Branch
     if isinstance(node, Branch):
         for child_index in sorted(node.children.keys()):
