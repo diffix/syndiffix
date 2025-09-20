@@ -1,3 +1,4 @@
+import unicodedata
 from abc import ABC, abstractmethod
 from bisect import bisect_left
 from itertools import islice
@@ -178,11 +179,20 @@ class TimestampConvertor(DataConvertor):
 class StringConvertor(DataConvertor):
     def __init__(self, values: Iterable[Value]) -> None:
         super().__init__()
-        unique_values = set(v for v in values if not pd.isna(v))
-        for value in unique_values:
-            if not isinstance(value, str):
-                raise TypeError(f"Not a `str` object in a string dtype column: {value}.")
-        self.value_map = sorted(cast(Set[str], unique_values))
+        unique_values = set()
+        for v in values:
+            if not pd.isna(v):
+                if not isinstance(v, str):
+                    raise TypeError(f"Not a `str` object in a string dtype column: {v}.")
+
+                # Normalize to NFC form to handle composed vs decomposed Unicode consistently
+                # This ensures "café" and "cafe\u0301" are treated as the same string
+                normalized_value = unicodedata.normalize("NFC", v)
+                unique_values.add(normalized_value)
+
+        # Use locale-independent binary sorting for consistent results across systems
+        # This ensures the same ordering regardless of system locale settings
+        self.value_map = sorted(unique_values, key=lambda x: x.encode("utf-8"))
 
         # Note that self.safe_values is only used if self.value_safe_flag is False
         self.safe_values: Set[float] = set()
@@ -197,7 +207,9 @@ class StringConvertor(DataConvertor):
 
     def to_float(self, value: Value) -> float:
         # Note that value here is the string itself, not an index.
-        index = bisect_left(self.value_map, cast(str, value))
+        # Normalize the lookup value the same way we normalized during initialization
+        normalized_value = unicodedata.normalize("NFC", cast(str, value))
+        index = bisect_left(self.value_map, normalized_value)
         assert index >= 0 and index < len(self.value_map)
         return float(index)
 

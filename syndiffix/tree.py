@@ -282,6 +282,26 @@ class Branch(Node):
         print(f"  _noisy_count_cache: {self._noisy_count_cache}")
 
 
+def tree_walker(node: Node) -> Iterator[Node]:
+    """
+    Walk through every node in the tree, yielding the current node and all descendants.
+
+    Args:
+        node: The root node to start walking from
+
+    Yields:
+        Every node in the tree including the starting node
+    """
+    # Yield the current node first
+    yield node
+
+    # Recursively yield children if this is a Branch
+    if isinstance(node, Branch):
+        for child_index in sorted(node.children.keys()):
+            child = node.children[child_index]
+            yield from tree_walker(child)
+
+
 def _dump_tree(node: Node, indent: int = 0) -> None:
     """Display the tree structure with directory-like indentation."""
     indent_str = "  " * indent
