@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, replace
-from typing import Iterator, NewType, Union
+from typing import Any, Iterator, NewType, Union
 
 import numpy as np
 import numpy.typing as npt
+import pandas as pd
 
 from .anonymizer import hash_strings
 from .common import *
@@ -282,25 +283,30 @@ class Branch(Node):
         print(f"  _noisy_count_cache: {self._noisy_count_cache}")
 
 
-def tree_walker(node: Node) -> Iterator[Node]:
+def tree_walker(node: Node, parent: Node | None = None, parent_child_index: int | None = None) -> Iterator[tuple[Node, Node | None, int | None]]:
     """
     Walk through every node in the tree, yielding the current node and all descendants.
 
     Args:
         node: The root node to start walking from
+        parent: The parent node (used internally for recursion)
+        parent_child_index: The child index of this node in its parent (used internally for recursion)
 
     Yields:
-        Every node in the tree including the starting node
+        A tuple of (node, parent, parent_child_index) for every node in the tree including the starting node
     """
-    # Yield the current node first
-    yield node
+    # Yield the current node first with its parent information
+    yield (node, parent, parent_child_index)
 
     # Recursively yield children if this is a Branch
     if isinstance(node, Branch):
         for child_index in sorted(node.children.keys()):
             child = node.children[child_index]
-            yield from tree_walker(child)
+            yield from tree_walker(child, node, child_index)
 
+def dump_tree(node: Node, indent: int = 0) -> None:
+    """Display the tree structure with directory-like indentation."""
+    _dump_tree(node, indent)
 
 def _dump_tree(node: Node, indent: int = 0) -> None:
     """Display the tree structure with directory-like indentation."""
@@ -316,10 +322,11 @@ def _dump_tree(node: Node, indent: int = 0) -> None:
         row_count = len(list(node._matching_rows()))
 
     # Print this node's info
-    print(f"{indent_str}[{intervals_str}] rows: {row_count}")
+    print(f"{indent_str}[{intervals_str}] rows: {row_count}, noisy count: {node.noisy_count()}")
 
     # Recursively print children if this is a Branch
     if isinstance(node, Branch):
         for child_index in sorted(node.children.keys()):
             child = node.children[child_index]
             _dump_tree(child, indent + 1)
+

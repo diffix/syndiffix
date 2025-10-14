@@ -36,6 +36,7 @@ scipy = ">=1.9"
 types-appdirs = ">=1.4.3.5"
 pyarrow = ">=17.0.0"
 fastparquet = ">=2024.5.0"
+matplotlib = ">=3.5"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.4.1"
