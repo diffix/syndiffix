@@ -330,7 +330,7 @@ def _convert_to_safe_value(value: float, safe_value_set: list[float]) -> float:
         return right_value
 
 
-def _generate(interval: Interval, convertor: DataConvertor, null_mapping: float, rng: Random) -> MicrodataValue:
+def generate_value(interval: Interval, convertor: DataConvertor, null_mapping: float, rng: Random) -> MicrodataValue:
     return convertor.from_interval(interval, rng) if interval.min != null_mapping else (None, null_mapping)
 
 
@@ -340,7 +340,7 @@ def _microdata_row_generator(
     assert len(intervals) == len(convertors)
     assert len(intervals) == len(null_mappings)
     while True:
-        yield [_generate(i, c, nm, rng) for i, c, nm in zip(intervals, convertors, null_mappings)]
+        yield [generate_value(i, c, nm, rng) for i, c, nm in zip(intervals, convertors, null_mappings)]
 
 
 def get_convertor(df: pd.DataFrame, column: str) -> DataConvertor:

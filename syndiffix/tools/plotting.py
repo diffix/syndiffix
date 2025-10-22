@@ -3,6 +3,7 @@ from __future__ import annotations
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import numpy as np
+import pandas as pd
 from scipy.stats import gaussian_kde
 
 
@@ -414,4 +415,79 @@ def plot_kde(kde: gaussian_kde, file_name: str = "", grid_points: int = 100, **k
         ax.set_aspect('equal')
     
     plt.tight_layout()
+    return plt
+
+
+def plot_1d_orig_anon_cdf(df_orig: pd.DataFrame, df_sdx: pd.DataFrame = None, df_test: pd.DataFrame = None, file_name: str = "") -> plt:
+    """
+    Plot CDF comparison between original and anonymized data.
+    
+    Creates a visualization comparing cumulative distribution functions of original data
+    against one or two anonymized versions. Each dataset is sorted and plotted with
+    index on x-axis and values on y-axis.
+    
+    Args:
+        df_orig: 1-column DataFrame with original data values
+        df_sdx: Optional 1-column DataFrame with Syndiffix anonymized values
+        df_test: Optional 1-column DataFrame with test/alternative anonymized values
+        file_name: String to display as part of the plot title
+        
+    Returns:
+        matplotlib.pyplot object ready for display or further customization
+        
+    Raises:
+        ValueError: If both df_sdx and df_test are None
+        
+    Example:
+        >>> # Compare original with Syndiffix data
+        >>> plt_obj = plot_1d_orig_anon_cdf(orig_df, sdx_df, file_name="comparison")
+        >>> plt_obj.show()
+        >>> 
+        >>> # Compare original with both Syndiffix and test data
+        >>> plt_obj = plot_1d_orig_anon_cdf(orig_df, sdx_df, test_df, "comparison")
+        >>> plt_obj.savefig('cdf_comparison.png')
+        
+    Note:
+        Requires matplotlib and pandas to be installed. At least one of df_sdx or df_test
+        must be provided. Original data is plotted in light_green, Syndiffix in blue, and test in red.
+    """
+    
+    if df_sdx is None and df_test is None:
+        raise ValueError("At least one of df_sdx or df_test must be provided (not None)")
+    
+    # Create figure and axis
+    fig, ax = plt.subplots(1, 1, figsize=(10, 6), dpi=300)
+    
+    # Get column name (assuming single column)
+    orig_col = df_orig.columns[0]
+    
+    # Sort original data and plot
+    orig_sorted = df_orig[orig_col].sort_values().values
+    orig_indices = np.arange(len(orig_sorted))
+    ax.scatter(orig_indices, orig_sorted, c='palegreen', s=10, alpha=1.0, label='Original')
+    
+    # Plot Syndiffix data if provided
+    if df_sdx is not None:
+        sdx_col = df_sdx.columns[0]
+        sdx_sorted = df_sdx[sdx_col].sort_values().values
+        sdx_indices = np.arange(len(sdx_sorted))
+        ax.scatter(sdx_indices, sdx_sorted, c='blue', s=1, alpha=0.7, label='Syndiffix')
+    
+    # Plot test data if provided
+    if df_test is not None:
+        test_col = df_test.columns[0]
+        test_sorted = df_test[test_col].sort_values().values
+        test_indices = np.arange(len(test_sorted))
+        ax.scatter(test_indices, test_sorted, c='red', s=1, alpha=0.7, label='Test')
+    
+    # Set up the plot
+    ax.set_xlabel('Index (sorted order)')
+    ax.set_ylabel('Value')
+    ax.set_title(f'1D CDF Comparison\n{file_name}')
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    
+    # Adjust layout
+    plt.tight_layout()
+    
     return plt

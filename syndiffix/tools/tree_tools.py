@@ -1,14 +1,19 @@
 from __future__ import annotations
 
 import ast
+import itertools
 from typing import Any, Iterator
 
 import pandas as pd
-from scipy.stats import gaussian_kde
 import numpy as np
+import random
 
 from ..interval import Interval
-from ..tree import Node, Leaf, Branch, tree_walker
+from ..tree import Node, Leaf, Branch, tree_walker, dump_tree
+from ..synthesizer import Synthesizer
+from ..microdata import generate_value
+from ..common import get_items_combination_list
+from ..interval import Interval
 
 
 def tree_to_df(node: Node) -> pd.DataFrame:
@@ -216,49 +221,74 @@ def dump_placeholder_tree(placeholder_node: Any, indent: int = 0) -> None:
             child = placeholder_node.children[child_index]
             dump_placeholder_tree(child, indent + 1)
 
-
-class TestNodes:
+class TestNode:
     """
     A class to convert and store tree DataFrame nodes.
     
     Converts each row in the DataFrame to a dictionary with the same format
     as df_to_complete_leafs() output: 'ranges' (from snapped_intervals), 'count' 
     (from _noisy_count_cache), and 'initial' (always True for existing nodes).
+
+    The _in suffix refers to structures taken from the inner represention of syndiffix. The _ex suffix refers to the external representations.
     """
     
-    def __init__(self, df: pd.DataFrame):
-        """
-        Initialize TestNodes with a DataFrame created by tree_to_df().
+    def __init__(self, syn: Synthesizer, comb: tuple, leafs_mode: str = "none", range_extend_fraction: float = 0.25) -> None:
+        self.leafs_mode = leafs_mode
+        self.range_extend_fraction = range_extend_fraction
+        self.nodes_in = {}
+        self.nodes_supp_in = {}
+        self.leafs_in = {}
+        self.points_in = None
+        self.histogram_in = None
+        self.assigned_values_in = None
+        self.assigned_values_ex = None
+        self.convertors = get_items_combination_list(comb, syn.column_convertors)
+        self.unsafe_rng = random.Random()
+        self.null_mappings = get_items_combination_list(comb, syn.forest.null_mappings)
+        self.root = syn.forest._tree_cache[comb]
+        # Note that tree_to_df determines suppress status. tree_to_df in this form won't
+        # be needed in the long run
+        self.df_tree_in = tree_to_df(self.root)
+        # set self.max_node_id to be the maximum node_id in self.df_tree_in
+        self.max_node_id = self.df_tree_in['node_id'].max() if not self.df_tree_in.empty else -1
         
-        Args:
-            df: DataFrame created by tree_to_df()
-        """
-        self.nodes = {}
-        self.nodes_supp = {}
-        self.leafs = {}
-        # set self.max_node_id to be the maximum node_id in df
-        self.max_node_id = df['node_id'].max() if not df.empty else -1
-        if df.empty:
-            return
-        
-        for _, row in df.iterrows():
+        for _, row in self.df_tree_in.iterrows():
             # Use row_to_node to convert the row to a dictionary
             node_dict = row_to_node(row)
             
             # Add the 'initial' field to match expected format
             node_dict['initial'] = True  # All nodes from DataFrame are original/initial nodes
 
-            self.nodes[node_dict['node_id']] = node_dict
+            self.nodes_in[node_dict['node_id']] = node_dict
+
+        if len(comb) == 1:
+            self.is_1d = True
+            self.is_2d = False
+        elif len(comb) == 2:
+            self.is_2d = True
+            self.is_1d = False
+        else:
+            raise ValueError(f"Nodes have ranges with length {len(self.nodes_in[self.max_node_id]['ranges'])}, only 1 or 2 are supported")
 
         self.suppress()
-        self.add_leafs_to_nodes_supp()
+        if self.leafs_mode != "none" and (self.is_1d or self.is_2d):
+            self.add_leafs_to_nodes_supp()
         # Must be after add_leafs_to_nodes_supp
         self.top_down_count_adjust()
+        # The following creates self.leafs_in, which contains only leaf nodes
         self.make_only_leafs()
+        if self.is_1d:
+            # The following creates self.points_in and self.histogram_in
+            self.prepare_1d_leafs()
+            col_name = syn.forest.orig_data.columns[comb[0]]
+            self.assigned_values_in, self.assigned_values_ex = self.assign_1d_values(col_name = col_name)
 
-        self.nodes_stats = self.compute_statistics(self.nodes)
-        self.nodes_supp_stats = self.compute_statistics(self.nodes_supp)
-        self.leafs_stats = self.compute_statistics(self.leafs)
+        self.nodes_in_stats = self.compute_statistics(self.nodes_in)
+        self.nodes_supp_in_stats = self.compute_statistics(self.nodes_supp_in)
+        self.leafs_in_stats = self.compute_statistics(self.leafs_in)
+
+    def dump_tree_from_root(self) -> None:
+        dump_tree(self.root)
 
     def integrity_checks(self) -> tuple[bool, dict]:
         """
@@ -269,11 +299,11 @@ class TestNodes:
         """
         results = {}
         
-        results['nodes_integrity'] = self._check_nodes_integrity(self.nodes)
-        results['nodes_leafs_integrity'] = self._check_leafs_integrity(self.nodes)
-        results['nodes_supp_integrity'] = self._check_nodes_integrity(self.nodes_supp)
-        results['nodes_supp_leafs_integrity'] = self._check_leafs_integrity(self.nodes_supp)
-        results['leafs_integrity'] = self._check_leafs_integrity(self.leafs)
+        results['nodes_integrity'] = self._check_nodes_integrity(self.nodes_in)
+        results['nodes_leafs_integrity'] = self._check_leafs_integrity(self.nodes_in)
+        results['nodes_supp_integrity'] = self._check_nodes_integrity(self.nodes_supp_in)
+        results['nodes_supp_leafs_integrity'] = self._check_leafs_integrity(self.nodes_supp_in)
+        results['leafs_integrity'] = self._check_leafs_integrity(self.leafs_in)
         problems_found = False
         for key, value in results.items():
             if value:  # If the list is not empty, there are problems
@@ -287,22 +317,22 @@ class TestNodes:
         and cleaning up child references.
         """
         # Initialize the suppressed nodes dictionary
-        self.nodes_supp = {}
+        self.nodes_supp_in = {}
         
         # Add all elements where suppress==False
-        for node_id, node_dict in self.nodes.items():
+        for node_id, node_dict in self.nodes_in.items():
             if not node_dict['suppress']:
-                self.nodes_supp[node_id] = node_dict.copy()
+                self.nodes_supp_in[node_id] = node_dict.copy()
         
         # Loop through because a deletion in one round can result in
         # more invalid child references
         # Walk through nodes_supp and remove invalid child references
-        for node_id, node_dict in self.nodes_supp.items():
+        for node_id, node_dict in self.nodes_supp_in.items():
             if 'children' in node_dict and node_dict['children']:
                 # Filter children to only include those that exist in nodes_supp
-                valid_children = {child_index: child_id 
-                                for child_index, child_id in node_dict['children'].items() 
-                                if child_id in self.nodes_supp}
+                valid_children = {child_index: child_id
+                                  for child_index, child_id in node_dict['children'].items()
+                                  if child_id in self.nodes_supp_in}
                 node_dict['children'] = valid_children
                 # If no valid children remain, convert to a Leaf
                 if not valid_children:
@@ -391,50 +421,57 @@ class TestNodes:
 
         return errors
 
-    def add_leafs_to_nodes_supp(self):
+    def add_leafs_to_nodes_supp(self) -> None:
         """
-        Create self.leafs list by collecting leaf nodes and generating nodes for missing children.
-        
+        Create self.leafs_in list by collecting leaf nodes and generating nodes for missing children.
+
+        self.leafs_mode can be 'simple' or 'leaf_only': 
+        - 'simple': Add missing children for branches based only on count differences.
+        - 'leaf_only': Additionally only if they would be adjacent to existing leaf nodes
+       
         Raises:
             ValueError: If any node has ranges with length > 2
         """
         # Initialize leafs
         leaf_id = self.max_node_id + 1  # Start new node IDs after existing max
         
-        # Walk through all nodes in nodes_supp
+        # Walk through all nodes in nodes_supp_in
         leafs_to_add = []
-        for node_id, node_dict in self.nodes_supp.items():
+        for node_id, node_dict in self.nodes_supp_in.items():
             # Check ranges length constraint
             if len(node_dict['ranges']) > 2:
                 raise ValueError(f"Node {node_id} has ranges with length {len(node_dict['ranges'])}, maximum allowed is 2")
             
-            # Determine if node is 1d or 2d
-            is_1d = len(node_dict['ranges']) == 1
-            is_2d = len(node_dict['ranges']) == 2
-            
             if node_dict['node_type'] == 'Branch':
                 # Check for missing children and potentially create new nodes
                 children = node_dict.get('children', {})
-                expected_children = 2 if is_1d else 4
+                expected_children = 2 if self.is_1d else 4
                 
                 if len(children) < expected_children:
                     branch_count = node_dict['count']
-                    child_sum = sum(self.nodes_supp[child_id]['count'] for child_id in children.values())
+                    child_sum = sum(self.nodes_supp_in[child_id]['count'] for child_id in children.values())
                     
+                    missing_child_indices = set()
                     if branch_count > child_sum:
                         # Find missing children
-                        existing_child_indices = set(children.keys())
-                        all_child_indices = set(range(expected_children))
-                        missing_child_indices = all_child_indices - existing_child_indices
-                        
+                        if self.leafs_mode == 'simple':
+                            existing_child_indices = set(children.keys())
+                            all_child_indices = set(range(expected_children))
+                            missing_child_indices = all_child_indices - existing_child_indices
+                        elif self.leafs_mode == 'leaf_only':
+                            missing_child_indices = self._get_leaf_only_missing_children(node_dict)
+                        else:
+                            raise ValueError(f"add_leafs_to_nodes_supp: Unknown mode: {mode}")
+
+                    num_missing = len(missing_child_indices)
+                    if num_missing > 0:
                         # Calculate count for each new node
-                        num_missing = len(missing_child_indices)
                         new_node_count = (branch_count - child_sum) / num_missing
                         
                         # Create new nodes for missing children
                         for child_index in missing_child_indices:
                             node_dict['children'][child_index] = int(leaf_id)
-                            new_ranges = self._calculate_child_ranges(node_dict['ranges'], child_index, is_1d)
+                            new_ranges = self._calculate_child_ranges(node_dict['ranges'], child_index)
                             
                             new_node = {
                                 'node_id': int(leaf_id),
@@ -449,21 +486,71 @@ class TestNodes:
                             leafs_to_add.append(new_node)
                             leaf_id += 1
         for new_node in leafs_to_add:
-            self.nodes_supp[new_node['node_id']] = new_node
-    
-    def _calculate_child_ranges(self, parent_ranges, child_index, is_1d):
+            self.nodes_supp_in[new_node['node_id']] = new_node
+
+    def _get_leaf_only_missing_children(self, node_dict) -> set[int]:
+        missing_child_indices = set()
+        
+        # Get all possible missing children
+        children = node_dict.get('children', {})
+        expected_children = 2 if self.is_1d else 4
+        existing_child_indices = set(children.keys())
+        all_child_indices = set(range(expected_children))
+        potential_missing = all_child_indices - existing_child_indices
+        
+        # Get all leaf nodes from the tree
+        leaf_nodes = [node for node in self.nodes_supp_in.values() 
+                    if node['node_type'] == 'Leaf']
+        
+        # Check each potential missing child
+        for child_index in potential_missing:
+            # Calculate what the missing child's range would be
+            child_ranges = self._calculate_child_ranges(node_dict['ranges'], child_index)
+            
+            # Check if this missing child would be adjacent to any existing leaf
+            for leaf_node in leaf_nodes:
+                if self._ranges_are_adjacent(child_ranges, leaf_node['ranges']):
+                    missing_child_indices.add(child_index)
+                    break  # Found one adjacent leaf, that's enough
+        
+        return missing_child_indices
+
+    def _ranges_are_adjacent(self, ranges1, ranges2):
+        """Check if two multi-dimensional ranges are adjacent (share a border)"""
+        if len(ranges1) != len(ranges2):
+            return False
+        
+        # Count dimensions where ranges touch at boundaries
+        touching_dimensions = 0
+        
+        for i in range(len(ranges1)):
+            r1_min, r1_max = ranges1[i]['min'], ranges1[i]['max']
+            r2_min, r2_max = ranges2[i]['min'], ranges2[i]['max']
+            
+            # Check if ranges touch at boundaries in this dimension
+            if r1_max == r2_min or r1_min == r2_max:
+                touching_dimensions += 1
+            # Check if ranges overlap or are separate in this dimension
+            elif r1_max <= r2_min or r2_max <= r1_min:
+                # Ranges are separate in this dimension - not adjacent
+                return False
+            # Otherwise ranges overlap in this dimension (which is fine for adjacency)
+        
+        # Adjacent if they touch in exactly one dimension and overlap/touch in others
+        return touching_dimensions >= 1
+
+    def _calculate_child_ranges(self, parent_ranges, child_index):
         """
         Calculate the ranges for a missing child based on parent ranges and child index.
         
         Args:
             parent_ranges: List of parent range dictionaries
             child_index: Index of the missing child (0-3)
-            is_1d: True if 1D, False if 2D
             
         Returns:
             List of range dictionaries for the child
         """
-        if is_1d:
+        if self.is_1d:
             parent_range = parent_ranges[0]
             mid_point = round((parent_range['min'] + parent_range['max']) / 2, 15)
             
@@ -507,13 +594,13 @@ class TestNodes:
     
     def make_only_leafs(self):
         """
-        Create self.leafs dict by collecting only leaf nodes from nodes_supp.
+        Create self.leafs_in dict by collecting only leaf nodes from nodes_supp.
         """
-        self.leafs = {}
+        self.leafs_in = {}
         
-        for node_id, node_dict in self.nodes_supp.items():
+        for node_id, node_dict in self.nodes_supp_in.items():
             if node_dict['node_type'] == 'Leaf':
-                self.leafs[node_id] = node_dict.copy()
+                self.leafs_in[node_id] = node_dict.copy()
     
     def compute_statistics(self, nodes_dict: dict) -> dict:
         """
@@ -748,8 +835,8 @@ class TestNodes:
         down the tree so that parent top_down_count equals sum of children top_down_count.
         """
         # Initialize root node's top_down_count
-        if 0 in self.nodes_supp:
-            self.nodes_supp[0]['top_down_count'] = self.nodes_supp[0]['count']
+        if 0 in self.nodes_supp_in:
+            self.nodes_supp_in[0]['top_down_count'] = self.nodes_supp_in[0]['count']
         else:
             return  # No root node found
         
@@ -758,7 +845,7 @@ class TestNodes:
         
         while nodes_to_process:
             current_node_id = nodes_to_process.pop(0)
-            current_node = self.nodes_supp[current_node_id]
+            current_node = self.nodes_supp_in[current_node_id]
             
             # Only process Branch nodes that have children
             if (current_node['node_type'] == 'Branch' and 
@@ -770,130 +857,229 @@ class TestNodes:
                 
                 # Calculate total count of children
                 child_ids = list(current_node['children'].values())
-                child_count_sum = sum(self.nodes_supp[child_id]['count'] for child_id in child_ids)
-                
-                # Avoid division by zero
-                if child_count_sum > 0:
-                    # Calculate proportional adjustment for each child
-                    for child_id in child_ids:
-                        child_node = self.nodes_supp[child_id]
-                        child_original_count = child_node['count']
-                        
-                        # Calculate proportional top_down_count
-                        proportion = child_original_count / child_count_sum
-                        child_node['top_down_count'] = parent_top_down_count * proportion
-                        
-                        # Add child to processing queue if it's a Branch
-                        if child_node['node_type'] == 'Branch':
-                            nodes_to_process.append(child_id)
-                else:
-                    # If child_count_sum is 0, distribute equally among children
-                    equal_share = parent_top_down_count / len(child_ids)
-                    for child_id in child_ids:
-                        child_node = self.nodes_supp[child_id]
-                        child_node['top_down_count'] = equal_share
-                        
-                        # Add child to processing queue if it's a Branch
-                        if child_node['node_type'] == 'Branch':
-                            nodes_to_process.append(child_id)
+                child_count_sum = sum(self.nodes_supp_in[child_id]['count'] for child_id in child_ids)
 
-    def make_gaussian_kde(self, bw_method: str = "scott", bw_scale: float = 1.0) -> gaussian_kde:
+                if child_count_sum == 0:
+                    raise ValueError("top_down_count_adjust: child_count_sum is zero, cannot adjust top_down_count proportionally")
+                
+                # Calculate proportional adjustment for each child
+                for child_id in child_ids:
+                    child_node = self.nodes_supp_in[child_id]
+                    child_original_count = child_node['count']
+                    
+                    # Calculate proportional top_down_count
+                    proportion = child_original_count / child_count_sum
+                    child_node['top_down_count'] = parent_top_down_count * proportion
+                    
+                    # Add child to processing queue if it's a Branch
+                    if child_node['node_type'] == 'Branch':
+                        nodes_to_process.append(child_id)
+
+    def prepare_1d_leafs(self):
         """
-        Create a Gaussian KDE from the histogram defined by leafs ranges and top_down_counts.
+        Prepare 1D leafs data by separating into points and histogram, filling gaps.
         
-        Args:
-            bw_method: Bandwidth method for KDE (default: "scott")
-            bw_scale: Scale factor for bandwidth (default: 1.0)
-            
-        Returns:
-            scipy.stats.gaussian_kde object
+        Creates self.points_in and self.histogram_in from self.leafs_in for 1D data.
+        Points are exact values (min==max), histogram entries are ranges (min!=max).
+        Gaps in histogram are filled with zero counts, ensuring coverage from 0 to 1.0.
         """
-        
-        if not self.leafs:
-            raise ValueError("No leafs available for KDE creation")
-        
         # Check dimensionality
-        sample_leaf = next(iter(self.leafs.values()))
-        num_dims = len(sample_leaf['ranges'])
+        if not self.leafs_in:
+            self.points_in = []
+            self.histogram_in = []
+            return
+
+        self.round_leafs_1d_in()
+
+        # Initialize lists
+        self.points_in = []
+        histogram_intervals = []
         
-        if num_dims > 2:
-            raise ValueError(f"KDE only supports 1D and 2D data, got {num_dims}D")
-        
-        # Collect data points by sampling within each bin
-        data_points = []
-        
-        for leaf in self.leafs.values():
-            # Skip leafs without top_down_count
-            if 'top_down_count' not in leaf:
-                continue
-                
-            weight = leaf['top_down_count']
-            if weight <= 0:
-                continue
+        # Process each leaf
+        for leaf in self.leafs_in.values():
+            range_info = leaf['ranges'][0]
+            min_val = range_info['min']
+            max_val = range_info['max']
+            count = leaf['rounded_count']
             
-            # Number of points to sample in this bin
-            num_samples = round(weight)
-            if num_samples == 0:
-                continue
+            if min_val == max_val:
+                # Point data
+                self.points_in.append((min_val, count))
+            else:
+                # Histogram interval
+                histogram_intervals.append(((min_val, max_val), count))
+        
+        # Sort points by ascending P
+        self.points_in.sort(key=lambda x: x[0])
+        
+        # Sort histogram intervals by ascending min
+        histogram_intervals.sort(key=lambda x: x[0][0])
+        
+        # Fill gaps in histogram and ensure coverage from 0 to 1.0
+        self.histogram_in = []
+        current_pos = 0.0
+        
+        for (min_val, max_val), count in histogram_intervals:
+            # Fill gap before this interval if needed
+            if current_pos < min_val:
+                self.histogram_in.append(((current_pos, min_val), 0))
             
-            ranges = leaf['ranges']
-            
-            if num_dims == 1:
-                # For 1D, sample uniformly within the range
-                min_val = ranges[0]['min']
-                max_val = ranges[0]['max']
-                
-                if min_val == max_val:
-                    # Point range - all samples at the same location
-                    samples = np.full(num_samples, min_val)
-                else:
-                    # Uniform sampling within the range
-                    samples = np.random.uniform(min_val, max_val, num_samples)
-                
-                data_points.extend(samples)
-                
-            elif num_dims == 2:
-                # For 2D, sample uniformly within the rectangle
-                min_x, max_x = ranges[0]['min'], ranges[0]['max']
-                min_y, max_y = ranges[1]['min'], ranges[1]['max']
-                
-                if min_x == max_x and min_y == max_y:
-                    # Point range - all samples at the same location
-                    samples = np.full((num_samples, 2), [min_x, min_y])
-                else:
-                    # Uniform sampling within the rectangle
-                    x_samples = np.random.uniform(min_x, max_x, num_samples)
-                    y_samples = np.random.uniform(min_y, max_y, num_samples)
-                    samples = np.column_stack([x_samples, y_samples])
-                
-                data_points.extend(samples)
+            # Add the actual interval
+            self.histogram_in.append(((min_val, max_val), count))
+            current_pos = max_val
         
-        if not data_points:
-            raise ValueError("No valid data points with top_down_count > 0 found")
+        # Fill gap at the end if needed
+        if current_pos < 1.0:
+            self.histogram_in.append(((current_pos, 1.0), 0))
         
-        # Convert to numpy array
-        data_points = np.array(data_points)
-        
-        # Transpose for scipy.stats.gaussian_kde (expects shape (n_dims, n_samples))
-        if num_dims == 1:
-            data_points = data_points.reshape(1, -1)
+        # Handle the case where there were no intervals at all
+        if not histogram_intervals:
+            self.histogram_in = [((0.0, 1.0), 0)]
+
+    def check_rounding_1d(self):
+        total_top_down = sum(leaf['top_down_count'] for leaf in self.leafs_in.values())
+        total_rounded = sum(leaf.get('rounded_count', 0) for leaf in self.leafs_in.values())
+        if round(total_top_down) != total_rounded:
+            raise ValueError(f"check_rounding_1d: total rounded {total_rounded} does not match rounded total top_down {round(total_top_down)}")
+
+    def round_leafs_1d_in(self) -> None:
+        total_rounded = 0
+        total_unrounded = 0
+        up_rounded_diffs = []
+        down_rounded_diffs = []
+        for node_id, leaf in self.leafs_in.items():
+            total_unrounded += leaf['top_down_count']
+            leaf['rounded_count'] = int(round(leaf['top_down_count']))
+            total_rounded += leaf['rounded_count']
+            diff = leaf['rounded_count'] - leaf['top_down_count']
+            if diff > 0:
+                up_rounded_diffs.append([node_id, diff])
+            else:
+                down_rounded_diffs.append([node_id, -diff])
+        needed_adjustment = round(total_unrounded) - total_rounded
+        print(f"round_leafs_1d_in: total_unrounded={total_unrounded}, total_rounded={total_rounded}, needed_adjustment={needed_adjustment}")
+        # having rounded all the counts, we may be off from the total we need
+        # fix this by adjusting some of the rounded counts up or down by 1, working
+        # from those with the largest rounding diffs
+        if needed_adjustment > 0:
+            # We need to increase some counts, so we work with those that we
+            # rounded down the most
+            sorted_diffs = sorted(down_rounded_diffs, key=lambda x: x[1], reverse=True)
+            sorted_diffs += sorted(up_rounded_diffs, key=lambda x: x[1])
         else:
-            data_points = data_points.T
+            # We need to decrease some counts, so we work with those that we
+            # rounded up the most
+            sorted_diffs = sorted(up_rounded_diffs, key=lambda x: x[1], reverse=True)
+            sorted_diffs += sorted(down_rounded_diffs, key=lambda x: x[1])
+        if len(sorted_diffs) < abs(needed_adjustment):
+            raise ValueError("round_leafs_1d_in: not enough leafs to adjust to reach needed total")
+        for i in range(abs(needed_adjustment)):
+            node_id = sorted_diffs[i][0]
+            if needed_adjustment > 0:
+                self.leafs_in[node_id]['rounded_count'] += 1
+                print(f"round_leafs_1d_in: increasing node_id={node_id} to {self.leafs_in[node_id]['rounded_count']}")
+            else:
+                if self.leafs_in[node_id]['rounded_count'] <= 0:
+                    continue
+                self.leafs_in[node_id]['rounded_count'] -= 1
+                print(f"round_leafs_1d_in: decreasing node_id={node_id} to {self.leafs_in[node_id]['rounded_count']}")
+        self.check_rounding_1d()
+
+    def assign_1d_values(self, col_name: str = 'value') -> tuple[pd.DataFrame, pd.DataFrame]:
+        """
+        Create two 1-column DataFrames by assigning values based on 1D leafs and their top_down_counts. The first dataframe contains pre-converted values, the second contains converted values.
         
-        # Create KDE (no weights needed since we're sampling the right number of points)
-        kde = gaussian_kde(data_points, bw_method=bw_method)
+        For each leaf:
+        - If min == max: assign that exact value
+        - If min != max and both are ints: assign random integers inclusive of min, exclusive of max
+        - If min != max and both are floats: assign random floats inclusive of both min and max
         
-        # Apply bandwidth scaling if specified
-        if bw_scale != 1.0:
-            # Store original covariance_factor method
-            original_covariance_factor = kde.covariance_factor
+        Returns:
+            pd.DataFrame with one column containing the assigned values
+        """
+        if not self.is_1d:
+            raise ValueError("assign_1d_values only works with 1D data")
+        
+        if self.histogram_in is None or self.points_in is None:
+            raise ValueError("assign_1d_values requires that prepare_1d_leafs be run first")
+        
+        all_preconverted_values = []
+        all_converted_values = []
+
+        for value, count in self.points_in:
+            all_preconverted_values.extend([value] * count)
+            # This is kindof heavyweight, but for now...
+            interval = Interval(value, value)
+            converted_value, _ = generate_value(interval=interval, convertor=self.convertors[0], null_mapping=self.null_mappings[0], rng=self.unsafe_rng)
+            all_converted_values.extend([converted_value] * count)
+
+        # Assign random values from self.histogram_in
+        for i, cur_bin in enumerate(self.histogram_in):
+            left_bin = self.histogram_in[i - 1] if i > 0 else None
+            right_bin = self.histogram_in[i + 1] if i < len(self.histogram_in) - 1 else None
             
-            # Create a new covariance_factor method that scales the bandwidth
-            def scaled_covariance_factor():
-                return original_covariance_factor() * bw_scale
-            
-            # Replace the method and recalculate bandwidth
-            kde.covariance_factor = scaled_covariance_factor
-            kde._compute_covariance()
-        
-        return kde
+            cur_min, cur_max = cur_bin[0]
+            cur_count = cur_bin[1]
+            if cur_count == 0:
+                continue
+
+            rules = []
+            cur_range = cur_max - cur_min
+            l_edge = 0.0
+            rules = []
+            if left_bin is not None:
+                left_min, left_max = left_bin[0]
+                left_range = left_max - left_min
+                min_range = min(cur_range, left_range)
+                seg_range = min_range * self.range_extend_fraction
+                seg_prob = (seg_range / cur_range) * 0.5
+                rules.append([[cur_min - seg_range, cur_min], seg_prob])
+                rules.append([[cur_min, cur_min+seg_range], seg_prob*2])
+                l_edge = cur_min + seg_range
+            if right_bin is not None:
+                right_min, right_max = right_bin[0]
+                right_range = right_max - right_min
+                min_range = min(cur_range, right_range)
+                seg_range = min_range * self.range_extend_fraction
+                seg_prob = (seg_range / cur_range) * 0.5
+                rules.append([[l_edge, cur_max-seg_range], 1.0-(seg_prob*2)])
+                rules.append([[cur_max-seg_range, cur_max], 1.0-seg_prob])
+                rules.append([[cur_max, cur_max+seg_range], 1.0])
+            else:
+                rules.append([[l_edge, cur_max], 1.0])
+            #print(f"Current bin {cur_bin}")
+            #print(rules)
+            new_values = self._assign_values_from_rules(rules, cur_count)
+            all_preconverted_values.extend(new_values)
+            for value in new_values:
+                interval = Interval(value, value)
+                converted_value, _ = generate_value(interval=interval, convertor=self.convertors[0], null_mapping=self.null_mappings[0], rng=self.unsafe_rng)
+                all_converted_values.append(converted_value)
+
+        return pd.DataFrame({col_name: all_preconverted_values}), pd.DataFrame({col_name: all_converted_values})
+
+    def _assign_values_from_rules(self, rules, count):
+        new_values = []
+        for _ in range(count):
+            rand_prob = random.random()
+            for rule in rules:
+                if rand_prob <= rule[1]:
+                    range_min, range_max = rule[0]
+                    if isinstance(range_min, int) and isinstance(range_max, int):
+                        value = random.randint(range_min, range_max - 1)
+                    else:
+                        value = random.uniform(range_min, range_max)
+                    new_values.append(value)
+                    break
+        return new_values
+
+class TestNodeForest:
+    def __init__(self, syn: Synthesizer, leafs_mode: str = 'none', range_extend_fraction: float = 0.25):
+        """
+        Manages the complete set of TestNode objects for a given Synthesizer.
+        """
+        self.test_nodes = {}
+        self.range_extend_fraction = range_extend_fraction
+        for r in range(1, len(syn.column_convertors) + 1):
+            for comb in itertools.combinations(range(len(syn.column_convertors)), r):
+                self.test_nodes[comb] = TestNode(syn, comb, leafs_mode=leafs_mode, range_extend_fraction=range_extend_fraction)
