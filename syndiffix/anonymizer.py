@@ -39,6 +39,13 @@ def _random_uniform(interval: FlatteningInterval, seed: Hash) -> int:
     return int(seed) % (interval.upper - interval.lower + 1) + interval.lower
 
 
+def _random_uniform_float(lower: float, upper: float, seed: Hash) -> float:
+    # Convert hash to a float between 0 and 1
+    u = (int(seed) & 0x7FFFFFFFFFFFFFFF) / 0x7FFFFFFFFFFFFFFF
+    # Scale to the desired range
+    return lower + u * (upper - lower)
+
+
 def _random_normal(sd: float, seed: Hash) -> float:
     u1 = (int(seed) & 0x7FFFFFFF) / 0x7FFFFFFF
     u1 = max(u1, sys.float_info.epsilon)
@@ -293,3 +300,16 @@ def noisy_row_limit(salt: bytes, seed: Hash, row_count: int, row_fraction: int) 
     noise = _random_uniform(FlatteningInterval(-noise_range, noise_range), noise_seed)
 
     return real_row_limit + noise
+
+
+def generate_root_buffers(anonymization_context: AnonymizationContext) -> tuple[float, float]:
+    root_buffers = anonymization_context.anonymization_params.root_buffers
+    salt = anonymization_context.anonymization_params.salt
+
+    lower_seed = _crypto_hash_salted_seed(salt, _mix_seed("lower_buffer", anonymization_context.bucket_seed))
+    upper_seed = _crypto_hash_salted_seed(salt, _mix_seed("upper_buffer", anonymization_context.bucket_seed))
+
+    lower_buffer = _random_uniform_float(root_buffers.lower_low, root_buffers.lower_high, lower_seed)
+    upper_buffer = _random_uniform_float(root_buffers.upper_low, root_buffers.upper_high, upper_seed)
+
+    return lower_buffer, upper_buffer

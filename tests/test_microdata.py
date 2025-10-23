@@ -1,6 +1,6 @@
 import string
 from io import StringIO
-from random import Random
+from random import Random, choice
 
 import numpy as np
 import pandas as pd
@@ -42,7 +42,7 @@ def _tweak_safe_values_df(df: pd.DataFrame, values_to_tweak: list[int] = [29]) -
     # instance to a random value, thus ensuring that some 1dim values will
     # fail LCF, producing non-singularity leafs
     def ran_str10() -> str:
-        return "".join(random.choice(string.ascii_letters) for i in range(10))
+        return "".join(choice(string.ascii_letters) for i in range(10))
 
     for column in df.columns:
         for value_to_tweak in values_to_tweak:
@@ -50,7 +50,10 @@ def _tweak_safe_values_df(df: pd.DataFrame, values_to_tweak: list[int] = [29]) -
 
 
 def _get_convertors(df: pd.DataFrame) -> list[DataConvertor]:
-    return [get_convertor(df, column) for column in df.columns]
+    # Create default anonymization params for testing
+
+    params = NOISELESS_PARAMS
+    return [get_convertor(df, column, params) for column in df.columns]
 
 
 def test_casts_to_float() -> None:
@@ -60,7 +63,9 @@ def test_casts_to_float() -> None:
     results = apply_convertors(convertors, data)
     assert results.shape == data.shape
     # Because of normalization, values have been changed
-    assert results.values[0, :].tolist() == [0.0, 0.0, 1.0, 0.0, 0.0]
+    # because of root_buffers, these are the expected values now:
+    expected_values = [0.1, 0.1, 1.0, 0.0, 0.1]
+    assert np.allclose(results.values[0, :].tolist(), expected_values, rtol=1e-10)
 
 
 def test_recognizes_types() -> None:
@@ -94,18 +99,19 @@ a,b,c,d,e,f,g,h,i
     # Because of normalization, some values have been changed
     expected = pd.DataFrame(
         {
-            "a": [0.0, 0.0],
-            "b": [0.0, 0.0],
-            "c": [0.0, 0.0],
+            "a": [0.1, 0.1],
+            "b": [0.1, 0.1],
+            "c": [0.1, 0.1],
             "d": [0.0, 0.9999],
-            "e": [np.nan, 0.0],
+            "e": [np.nan, 0.1],
             "f": [np.nan, 0.0],
             "g": [np.nan, np.nan],
-            "h": [0.0, np.nan],
-            "i": [np.nan, 0.0],
+            "h": [0.1, np.nan],
+            "i": [np.nan, 0.1],
         }
     )
-    assert results.equals(expected)
+    # Use pandas testing utilities for better NaN handling
+    pd.testing.assert_frame_equal(results, expected, check_dtype=False)
 
 
 def test_generates_real_microdata() -> None:
@@ -113,7 +119,16 @@ def test_generates_real_microdata() -> None:
         Bucket((Interval(-1.0, 2.0), Interval(3.0, 3.0)), 3),
         Bucket((Interval(-11.0, 12.0), Interval(13.0, 13.0)), 10),
     ]
-    microdata = generate_microdata(buckets, [RealConvertor([1.23]), RealConvertor([1.23])], [1234.0, 1234.0], _rng)
+
+    params = NOISELESS_PARAMS
+    convertors = [RealConvertor("col1", params, [1.23]), RealConvertor("col2", params, [1.23])]
+
+    # Test buffer bounds
+    for convertor in convertors:
+        assert params.root_buffers.lower_low <= convertor.lower_buffer <= params.root_buffers.lower_high
+        assert params.root_buffers.upper_low <= convertor.upper_buffer <= params.root_buffers.upper_high
+
+    microdata = generate_microdata(buckets, cast(list[DataConvertor], convertors), [1234.0, 1234.0], _rng)
 
     assert len(microdata) == 13
 
@@ -134,7 +149,16 @@ def test_generates_bool_microdata() -> None:
     buckets = [
         Bucket((Interval(0.0, 0.0), Interval(1.0, 1.0)), 3),
     ]
-    microdata = generate_microdata(buckets, [BooleanConvertor(), BooleanConvertor()], [1234.0, 1234.0], _rng)
+
+    params = NOISELESS_PARAMS
+    convertors = [BooleanConvertor("col1", params), BooleanConvertor("col2", params)]
+
+    # Test buffer bounds
+    for convertor in convertors:
+        assert params.root_buffers.lower_low <= convertor.lower_buffer <= params.root_buffers.lower_high
+        assert params.root_buffers.upper_low <= convertor.upper_buffer <= params.root_buffers.upper_high
+
+    microdata = generate_microdata(buckets, cast(list[DataConvertor], convertors), [1234.0, 1234.0], _rng)
     for row in microdata:
         assert len(row) == 2
         for value in row:
@@ -146,7 +170,16 @@ def test_generates_int_microdata() -> None:
     buckets = [
         Bucket((Interval(1.1, 1.6), Interval(3.0, 3.0)), 3),
     ]
-    microdata = generate_microdata(buckets, [IntegerConvertor(), IntegerConvertor()], [1234.0, 1234.0], _rng)
+
+    params = NOISELESS_PARAMS
+    convertors = [IntegerConvertor("col1", params), IntegerConvertor("col2", params)]
+
+    # Test buffer bounds
+    for convertor in convertors:
+        assert params.root_buffers.lower_low <= convertor.lower_buffer <= params.root_buffers.lower_high
+        assert params.root_buffers.upper_low <= convertor.upper_buffer <= params.root_buffers.upper_high
+
+    microdata = generate_microdata(buckets, cast(list[DataConvertor], convertors), [1234.0, 1234.0], _rng)
     for row in microdata:
         assert len(row) == 2
         for value in row:
@@ -158,7 +191,16 @@ def test_generates_timestamp_microdata() -> None:
     buckets = [
         Bucket((Interval(0.0, 1.5432), Interval(3.0, 3.0)), 3),
     ]
-    microdata = generate_microdata(buckets, [TimestampConvertor(), TimestampConvertor()], [1234.0, 1234.0], _rng)
+
+    params = NOISELESS_PARAMS
+    convertors = [TimestampConvertor("col1", params), TimestampConvertor("col2", params)]
+
+    # Test buffer bounds
+    for convertor in convertors:
+        assert params.root_buffers.lower_low <= convertor.lower_buffer <= params.root_buffers.lower_high
+        assert params.root_buffers.upper_low <= convertor.upper_buffer <= params.root_buffers.upper_high
+
+    microdata = generate_microdata(buckets, cast(list[DataConvertor], convertors), [1234.0, 1234.0], _rng)
     for row in microdata:
         assert len(row) == 2
         for value in row:
@@ -173,7 +215,14 @@ def test_generates_string_microdata() -> None:
     buckets = [
         Bucket((Interval(0.0, 3.0), Interval(4.0, 4.0), Interval(5.0, 5.0)), 3),
     ]
-    convertor = StringConvertor(["aa", "ab", "ac", "ad", "c", "d"])
+
+    params = NOISELESS_PARAMS
+    convertor = StringConvertor("col1", params, ["aa", "ab", "ac", "ad", "c", "d"])
+
+    # Test buffer bounds
+    assert params.root_buffers.lower_low <= convertor.lower_buffer <= params.root_buffers.lower_high
+    assert params.root_buffers.upper_low <= convertor.upper_buffer <= params.root_buffers.upper_high
+
     microdata = generate_microdata(buckets, [convertor] * 3, [1234.0] * 3, _rng)
     for row in microdata:
         assert len(row) == 3
@@ -192,7 +241,15 @@ def test_generates_nulls() -> None:
     buckets = [
         Bucket((Interval(1.2, 1.2),), 3),
     ]
-    microdata = generate_microdata(buckets, [IntegerConvertor()], [1.2], _rng)
+
+    params = NOISELESS_PARAMS
+    convertor = IntegerConvertor("col1", params)
+
+    # Test buffer bounds
+    assert params.root_buffers.lower_low <= convertor.lower_buffer <= params.root_buffers.lower_high
+    assert params.root_buffers.upper_low <= convertor.upper_buffer <= params.root_buffers.upper_high
+
+    microdata = generate_microdata(buckets, [convertor], [1.2], _rng)
     for row in microdata[:3]:
         assert len(row) == 1
         assert row[0] == (None, 1.2)

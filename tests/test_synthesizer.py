@@ -92,7 +92,6 @@ def test_string_ranges() -> None:
     )
     np.random.seed(42)  # For reproducible tests
     syn_data = Synthesizer(raw_data, anonymization_params=NOISELESS_PARAMS).sample()
-    print(syn_data)
 
     assert len(syn_data) == approx(len(raw_data), rel=0.1)
 
