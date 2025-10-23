@@ -1,6 +1,6 @@
 import string
 from io import StringIO
-from random import Random
+from random import Random, choice
 
 import numpy as np
 import pandas as pd
@@ -42,7 +42,7 @@ def _tweak_safe_values_df(df: pd.DataFrame, values_to_tweak: list[int] = [29]) -
     # instance to a random value, thus ensuring that some 1dim values will
     # fail LCF, producing non-singularity leafs
     def ran_str10() -> str:
-        return "".join(random.choice(string.ascii_letters) for i in range(10))
+        return "".join(choice(string.ascii_letters) for i in range(10))
 
     for column in df.columns:
         for value_to_tweak in values_to_tweak:
@@ -128,7 +128,7 @@ def test_generates_real_microdata() -> None:
         assert params.root_buffers.lower_low <= convertor.lower_buffer <= params.root_buffers.lower_high
         assert params.root_buffers.upper_low <= convertor.upper_buffer <= params.root_buffers.upper_high
 
-    microdata = generate_microdata(buckets, convertors, [1234.0, 1234.0], _rng)
+    microdata = generate_microdata(buckets, cast(list[DataConvertor], convertors), [1234.0, 1234.0], _rng)
 
     assert len(microdata) == 13
 
@@ -158,7 +158,7 @@ def test_generates_bool_microdata() -> None:
         assert params.root_buffers.lower_low <= convertor.lower_buffer <= params.root_buffers.lower_high
         assert params.root_buffers.upper_low <= convertor.upper_buffer <= params.root_buffers.upper_high
 
-    microdata = generate_microdata(buckets, convertors, [1234.0, 1234.0], _rng)
+    microdata = generate_microdata(buckets, cast(list[DataConvertor], convertors), [1234.0, 1234.0], _rng)
     for row in microdata:
         assert len(row) == 2
         for value in row:
@@ -179,7 +179,7 @@ def test_generates_int_microdata() -> None:
         assert params.root_buffers.lower_low <= convertor.lower_buffer <= params.root_buffers.lower_high
         assert params.root_buffers.upper_low <= convertor.upper_buffer <= params.root_buffers.upper_high
 
-    microdata = generate_microdata(buckets, convertors, [1234.0, 1234.0], _rng)
+    microdata = generate_microdata(buckets, cast(list[DataConvertor], convertors), [1234.0, 1234.0], _rng)
     for row in microdata:
         assert len(row) == 2
         for value in row:
@@ -200,7 +200,7 @@ def test_generates_timestamp_microdata() -> None:
         assert params.root_buffers.lower_low <= convertor.lower_buffer <= params.root_buffers.lower_high
         assert params.root_buffers.upper_low <= convertor.upper_buffer <= params.root_buffers.upper_high
 
-    microdata = generate_microdata(buckets, convertors, [1234.0, 1234.0], _rng)
+    microdata = generate_microdata(buckets, cast(list[DataConvertor], convertors), [1234.0, 1234.0], _rng)
     for row in microdata:
         assert len(row) == 2
         for value in row:
