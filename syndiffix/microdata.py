@@ -17,8 +17,16 @@ from pandas.api.types import (
 )
 from sklearn.preprocessing import MinMaxScaler
 
+from .anonymizer import generate_root_buffers, hash_strings
 from .bucket import Buckets
-from .common import ColumnId, ColumnType, Value, check_column_names_or_ids
+from .common import (
+    AnonymizationContext,
+    AnonymizationParams,
+    ColumnId,
+    ColumnType,
+    Value,
+    check_column_names_or_ids,
+)
 from .interval import Interval, Intervals
 from .tree import Branch, Leaf, Node
 
@@ -33,9 +41,14 @@ TIMESTAMP_REFERENCE = pd.Timestamp("1800-01-01T00:00:00")
 
 
 class DataConvertor(ABC):
-    def __init__(self) -> None:
+    def __init__(self, column: str, anonymization_params: AnonymizationParams) -> None:
         self.scaler: Optional[MinMaxScaler] = None
         self.value_safe_flag: bool = False
+
+        base_seed = hash_strings(iter([str(column)]))
+        self.lower_buffer, self.upper_buffer = generate_root_buffers(
+            AnonymizationContext(base_seed, anonymization_params)
+        )
 
     @abstractmethod
     def column_type(self) -> ColumnType:
@@ -64,8 +77,8 @@ class DataConvertor(ABC):
 
 
 class BooleanConvertor(DataConvertor):
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, column: str, anonymization_params: AnonymizationParams) -> None:
+        super().__init__(column, anonymization_params)
 
     def column_type(self) -> ColumnType:
         return ColumnType.BOOLEAN
@@ -84,13 +97,12 @@ class BooleanConvertor(DataConvertor):
 
 
 class RealConvertor(DataConvertor):
-    def __init__(self, values: Iterable[Value]) -> None:
-        super().__init__()
-        # Fit up to 0.9999 so that the max bucket range is [0-1)
-        self.scaler = MinMaxScaler(feature_range=(0.0, 0.9999))  # type: ignore
+    def __init__(self, column: str, anonymization_params: AnonymizationParams, values: Iterable[Value]) -> None:
+        super().__init__(column, anonymization_params)
+        self.scaler = MinMaxScaler(feature_range=(self.lower_buffer, self.upper_buffer))  # type: ignore
         # This value-neutral fitting is only for passing unit tests, gets overridden
         # later by fit_transform().
-        self.scaler.fit(np.array([[0.0], [0.9999]]))
+        self.scaler.fit(np.array([[self.lower_buffer], [self.upper_buffer]]))
         self.final_round_precision = _get_round_precision(cast(Iterable[float], values))
 
     def column_type(self) -> ColumnType:
@@ -116,13 +128,12 @@ class RealConvertor(DataConvertor):
 
 
 class IntegerConvertor(DataConvertor):
-    def __init__(self) -> None:
-        super().__init__()
-        # Fit up to 0.9999 so that the max bucket range is [0-1)
-        self.scaler = MinMaxScaler(feature_range=(0.0, 0.9999))  # type: ignore
+    def __init__(self, column: str, anonymization_params: AnonymizationParams) -> None:
+        super().__init__(column, anonymization_params)
+        self.scaler = MinMaxScaler(feature_range=(self.lower_buffer, self.upper_buffer))  # type: ignore
         # This value-neutral fitting is only for passing unit tests, gets overridden
         # later by fit_transform().
-        self.scaler.fit(np.array([[0.0], [0.9999]]))
+        self.scaler.fit(np.array([[self.lower_buffer], [self.upper_buffer]]))
 
     def column_type(self) -> ColumnType:
         return ColumnType.INTEGER
@@ -146,13 +157,12 @@ class IntegerConvertor(DataConvertor):
 
 
 class TimestampConvertor(DataConvertor):
-    def __init__(self) -> None:
-        super().__init__()
-        # Fit up to 0.9999 so that the max bucket range is [0-1)
-        self.scaler = MinMaxScaler(feature_range=(0.0, 0.9999))  # type: ignore
+    def __init__(self, column: str, anonymization_params: AnonymizationParams) -> None:
+        super().__init__(column, anonymization_params)
+        self.scaler = MinMaxScaler(feature_range=(self.lower_buffer, self.upper_buffer))  # type: ignore
         # This value-neutral fitting is only for passing unit tests, gets overridden
         # later by fit_transform().
-        self.scaler.fit(np.array([[0.0], [0.9999]]))
+        self.scaler.fit(np.array([[self.lower_buffer], [self.upper_buffer]]))
 
     def column_type(self) -> ColumnType:
         return ColumnType.TIMESTAMP
@@ -177,8 +187,8 @@ class TimestampConvertor(DataConvertor):
 
 
 class StringConvertor(DataConvertor):
-    def __init__(self, values: Iterable[Value]) -> None:
-        super().__init__()
+    def __init__(self, column: str, anonymization_params: AnonymizationParams, values: Iterable[Value]) -> None:
+        super().__init__(column, anonymization_params)
         unique_values = set()
         for v in values:
             if not pd.isna(v):
@@ -196,7 +206,6 @@ class StringConvertor(DataConvertor):
 
         # Note that self.safe_values is only used if self.value_safe_flag is False
         self.safe_values: Set[float] = set()
-        # Fit up to 0.9999 so that the max bucket range is [0-1)
         self.scaler = MinMaxScaler(feature_range=(0.0, 0.9999))  # type: ignore
         # This value-neutral fitting is only for passing unit tests, gets overridden
         # later by fit_transform().
@@ -231,7 +240,7 @@ class StringConvertor(DataConvertor):
         min_value = int(interval.min)
         # max_value is inclusive
         max_value = min(int(interval.max) - 1, len(self.value_map) - 1)
-        # The latter term in the above line can 0 (not sure why TODO: check)
+        # The latter term in the above line can be 0 (not sure why TODO: check)
         max_value = max(min_value, max_value)
         value = rng.randint(min_value, max_value)
         if self.value_safe_flag is True or value in self.safe_values:
@@ -343,19 +352,19 @@ def _microdata_row_generator(
         yield [_generate(i, c, nm, rng) for i, c, nm in zip(intervals, convertors, null_mappings)]
 
 
-def get_convertor(df: pd.DataFrame, column: str) -> DataConvertor:
+def get_convertor(df: pd.DataFrame, column: str, anonymization_params: AnonymizationParams) -> DataConvertor:
     dtype = df.dtypes[column]
     if is_integer_dtype(dtype):
-        return IntegerConvertor()
+        return IntegerConvertor(column, anonymization_params)
     elif is_float_dtype(dtype):
-        return RealConvertor(df[column])
+        return RealConvertor(column, anonymization_params, df[column])
     elif is_bool_dtype(dtype):
-        return BooleanConvertor()
+        return BooleanConvertor(column, anonymization_params)
     elif is_datetime64_dtype(dtype):
-        return TimestampConvertor()
+        return TimestampConvertor(column, anonymization_params)
     elif is_string_dtype(dtype):
         # Note above is `True` for `object` dtype, but `StringConvertor` will assert values are `str`.
-        return StringConvertor(df[column])
+        return StringConvertor(column, anonymization_params, df[column])
     else:
         raise TypeError(f"Dtype {dtype} is not supported.")
 

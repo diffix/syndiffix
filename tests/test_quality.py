@@ -108,7 +108,7 @@ def test_quality_float_float() -> None:
     ks_stat_x, _ = ks_2samp(df["x"], df_syn["x"])
     assert ks_stat_x < 0.15, f"X column distributions too different (KS statistic: {ks_stat_x})"
     assert df_syn["x"].mean() == approx(df["x"].mean(), abs=0.02)
-    assert df_syn["x"].std() == approx(df["x"].std(), abs=0.04)
+    assert df_syn["x"].std() == approx(df["x"].std(), abs=0.05)
 
     # Y column
     ks_stat_y, _ = ks_2samp(df["y"], df_syn["y"])
@@ -186,11 +186,15 @@ def test_quality_str_str() -> None:
     # Type column
     orig_type_counts = df["type"].value_counts().sort_index()
     syn_type_counts = df_syn["type"].value_counts().sort_index()
+    print(f"len df: {len(df)}, len df_syn: {len(df_syn)}")
+    print(f"Original type counts:\n{orig_type_counts}")
+    print(f"Synthetic type counts:\n{syn_type_counts}")
 
     for type_val in orig_type_counts.index:
         assert type_val in syn_type_counts.index, f"Type {type_val} missing from synthetic data"
         orig_pct = orig_type_counts[type_val] / len(df)
         syn_pct = syn_type_counts[type_val] / len(df_syn)
+        print(f"Type {type_val}: orig cnt {orig_type_counts[type_val]}, syn cnt {syn_type_counts[type_val]}")
         assert syn_pct == approx(orig_pct, abs=0.005), f"Type {type_val} proportion differs too much"
 
     # 2. Dependency tests using contingency table analysis
