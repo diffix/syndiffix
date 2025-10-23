@@ -9,9 +9,12 @@ from syndiffix.microdata import apply_convertors, get_convertor
 
 SALT = bytes([])
 NOISELESS_SUPPRESSION = SuppressionParams(layer_sd=0.0)
+NOISELESS_ROOT_BUFFERS = RootBuffer(upper_high=0.9, upper_low=0.9, lower_high=0.1, lower_low=0.1)
+# NOISELESS_ROOT_BUFFERS = RootBuffer(upper_high=1.0, upper_low=1.0, lower_high=0.0, lower_low=0.0)
 
 NOISELESS_PARAMS = AnonymizationParams(
     low_count_params=NOISELESS_SUPPRESSION,
+    root_buffers=NOISELESS_ROOT_BUFFERS,
     layer_noise_sd=0.0,
     outlier_count=FlatteningInterval(upper=FlatteningInterval().lower),
     top_count=FlatteningInterval(upper=FlatteningInterval().lower),
@@ -41,7 +44,9 @@ def _load_csv(path: str, columns: list[str] | None) -> pd.DataFrame:
     df = pd.read_csv(path, keep_default_na=False, na_values=[""], low_memory=False)
     if columns is not None:
         df = df[columns]
-    return apply_convertors([get_convertor(df, column) for column in df.columns], df)
+    # Create default anonymization params for loading CSV data
+    params = NOISELESS_PARAMS
+    return apply_convertors([get_convertor(df, column, params) for column in df.columns], df)
 
 
 def load_forest(

@@ -34,6 +34,14 @@ Columns = tuple[Column, ...]
 
 
 @dataclass(frozen=True)
+class RootBuffer:
+    upper_high: float = 0.95
+    upper_low: float = 0.85
+    lower_high: float = 0.15
+    lower_low: float = 0.05
+
+
+@dataclass(frozen=True)
 class FlatteningInterval:
     lower: int = 2
     upper: int = 5
@@ -63,6 +71,7 @@ class AnonymizationParams:
     low_count_params: SuppressionParams = SuppressionParams()
     outlier_count: FlatteningInterval = FlatteningInterval()
     top_count: FlatteningInterval = FlatteningInterval()
+    root_buffers: RootBuffer = RootBuffer()
     layer_noise_sd: float = 1.0
 
 
