@@ -338,6 +338,8 @@ class TestNode:
                 if not valid_children:
                     node_dict['node_type'] = 'Leaf'
                     node_dict['children'] = {}
+        # copy self.nodes_supp_in to self.nodes_supp_in_temp   (TODO remove)
+        self.nodes_supp_in_temp = self.nodes_supp_in.copy()
 
     def _check_nodes_integrity(self, nodes) -> list[str]:
         """
@@ -423,7 +425,7 @@ class TestNode:
 
     def add_leafs_to_nodes_supp(self) -> None:
         """
-        Create self.leafs_in list by collecting leaf nodes and generating nodes for missing children.
+        Generate nodes for missing children in self.nodes_supp_in.
 
         self.leafs_mode can be 'simple' or 'leaf_only': 
         - 'simple': Add missing children for branches based only on count differences.
@@ -434,6 +436,12 @@ class TestNode:
         """
         # Initialize leafs
         leaf_id = self.max_node_id + 1  # Start new node IDs after existing max
+        
+        leaf_nodes_list = []
+        if self.leafs_mode == 'leaf_only':
+            # Get all leaf nodes from the tree
+            leaf_nodes_list = [node for node in self.nodes_supp_in.values() 
+                                    if node['node_type'] == 'Leaf']
         
         # Walk through all nodes in nodes_supp_in
         leafs_to_add = []
@@ -459,38 +467,70 @@ class TestNode:
                             all_child_indices = set(range(expected_children))
                             missing_child_indices = all_child_indices - existing_child_indices
                         elif self.leafs_mode == 'leaf_only':
-                            missing_child_indices = self._get_leaf_only_missing_children(node_dict)
+                            missing_child_indices = self._get_leaf_only_missing_children(node_dict, leaf_nodes_list)
                         else:
-                            raise ValueError(f"add_leafs_to_nodes_supp: Unknown mode: {mode}")
+                            raise ValueError(f"add_leafs_to_nodes_supp: Unknown mode: {self.leafs_mode}")
 
                     num_missing = len(missing_child_indices)
                     if num_missing > 0:
-                        # Calculate count for each new node
-                        new_node_count = (branch_count - child_sum) / num_missing
+                        # Distribute remaining count as evenly as possible
+                        remaining_count = branch_count - child_sum
+                        child_counts = self._distribute_count_evenly(remaining_count, num_missing)
                         
-                        # Create new nodes for missing children
-                        for child_index in missing_child_indices:
-                            node_dict['children'][child_index] = int(leaf_id)
-                            new_ranges = self._calculate_child_ranges(node_dict['ranges'], child_index)
-                            
-                            new_node = {
-                                'node_id': int(leaf_id),
-                                'node_type': 'Leaf',
-                                'initial': False,
-                                'count': new_node_count,
-                                'ranges': new_ranges,
-                                'true_count': None,
-                                'suppress': False,
-                                'children': {}
-                            }
-                            leafs_to_add.append(new_node)
-                            leaf_id += 1
+                        # Create new nodes for missing children with non-zero counts
+                        for i, child_index in enumerate(sorted(missing_child_indices)):
+                            new_node_count = child_counts[i]
+                            if new_node_count > 0:  # Only create nodes with positive count
+                                node_dict['children'][child_index] = int(leaf_id)
+                                new_ranges = self._calculate_child_ranges(node_dict['ranges'], child_index)
+                                
+                                new_node = {
+                                    'node_id': int(leaf_id),
+                                    'node_type': 'Leaf',
+                                    'initial': False,
+                                    'count': new_node_count,
+                                    'ranges': new_ranges,
+                                    'true_count': None,
+                                    'suppress': False,
+                                    'children': {}
+                                }
+                                leafs_to_add.append(new_node)
+                                leaf_id += 1
         for new_node in leafs_to_add:
             self.nodes_supp_in[new_node['node_id']] = new_node
 
-    def _get_leaf_only_missing_children(self, node_dict) -> set[int]:
+    def _distribute_count_evenly(self, total_count: float, num_recipients: int) -> list[int]:
+        """
+        Distribute a total count as evenly as possible among recipients.
+        
+        Args:
+            total_count: Total count to distribute (can be float)
+            num_recipients: Number of recipients to distribute to
+            
+        Returns:
+            List of integer counts that sum to round(total_count)
+        """
+        if num_recipients == 0:
+            return []
+        
+        # Round total to nearest integer
+        total_int = int(round(total_count))
+        
+        # Base count for each recipient
+        base_count = total_int // num_recipients
+        remainder = total_int % num_recipients
+        
+        # Distribute base count to all, then add 1 to first 'remainder' recipients
+        counts = [base_count] * num_recipients
+        for i in range(remainder):
+            counts[i] += 1
+            
+        return counts
+
+    def _get_leaf_only_missing_children(self, node_dict: dict, leaf_nodes_list: list[dict]) -> set[int]:
         missing_child_indices = set()
         
+        print(f"Checking node {node_dict} for leaf-only missing children")
         # Get all possible missing children
         children = node_dict.get('children', {})
         expected_children = 2 if self.is_1d else 4
@@ -498,18 +538,16 @@ class TestNode:
         all_child_indices = set(range(expected_children))
         potential_missing = all_child_indices - existing_child_indices
         
-        # Get all leaf nodes from the tree
-        leaf_nodes = [node for node in self.nodes_supp_in.values() 
-                    if node['node_type'] == 'Leaf']
-        
         # Check each potential missing child
         for child_index in potential_missing:
             # Calculate what the missing child's range would be
             child_ranges = self._calculate_child_ranges(node_dict['ranges'], child_index)
+            print(f"  Potential missing child index {child_index} with ranges {child_ranges}")
             
             # Check if this missing child would be adjacent to any existing leaf
-            for leaf_node in leaf_nodes:
+            for leaf_node in leaf_nodes_list:
                 if self._ranges_are_adjacent(child_ranges, leaf_node['ranges']):
+                    print(f"    Found adjacent leaf {leaf_node['node_id']} with ranges {leaf_node['ranges']}")
                     missing_child_indices.add(child_index)
                     break  # Found one adjacent leaf, that's enough
         
@@ -520,8 +558,12 @@ class TestNode:
         if len(ranges1) != len(ranges2):
             return False
         
-        # Count dimensions where ranges touch at boundaries
+        # For ranges to be adjacent, they must:
+        # 1. Touch at boundaries in exactly one dimension
+        # 2. Overlap or touch in all other dimensions
+        
         touching_dimensions = 0
+        overlapping_dimensions = 0
         
         for i in range(len(ranges1)):
             r1_min, r1_max = ranges1[i]['min'], ranges1[i]['max']
@@ -530,14 +572,15 @@ class TestNode:
             # Check if ranges touch at boundaries in this dimension
             if r1_max == r2_min or r1_min == r2_max:
                 touching_dimensions += 1
-            # Check if ranges overlap or are separate in this dimension
-            elif r1_max <= r2_min or r2_max <= r1_min:
-                # Ranges are separate in this dimension - not adjacent
+            # Check if ranges overlap in this dimension
+            elif not (r1_max <= r2_min or r2_max <= r1_min):
+                overlapping_dimensions += 1
+            # If ranges are separate in this dimension, they can't be adjacent
+            else:
                 return False
-            # Otherwise ranges overlap in this dimension (which is fine for adjacency)
         
-        # Adjacent if they touch in exactly one dimension and overlap/touch in others
-        return touching_dimensions >= 1
+        # Adjacent if they touch in exactly one dimension and overlap in all others
+        return touching_dimensions == 1 and overlapping_dimensions == (len(ranges1) - 1)
 
     def _calculate_child_ranges(self, parent_ranges, child_index):
         """

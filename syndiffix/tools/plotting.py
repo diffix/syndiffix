@@ -251,11 +251,20 @@ def plot_2d_nodes_boxes(nodes: dict | list, column_indexes: list[int], file_name
             # Scale linewidth from 1 to 4 based on box width
             line_width = 1 + (box_width * 3)
             
-            # Create rectangle patch with colored border, no fill, and alpha transparency
-            rect = patches.Rectangle(
-                (x_min, y_min), width, height,
-                linewidth=line_width, edgecolor=color, facecolor='none', alpha=0.7
-            )
+            # Check if this is a leaf node
+            node_type = node.get('node_type', '')
+            if node_type == 'Leaf':
+                # Create rectangle with colored border and light grey fill for leaf nodes
+                rect = patches.Rectangle(
+                    (x_min, y_min), width, height,
+                    linewidth=line_width, edgecolor=color, facecolor='lightgrey', alpha=0.4
+                )
+            else:
+                # Create rectangle patch with colored border, no fill, and alpha transparency
+                rect = patches.Rectangle(
+                    (x_min, y_min), width, height,
+                    linewidth=line_width, edgecolor=color, facecolor='none', alpha=0.7
+                )
         
         # Add rectangle to plot
         ax.add_patch(rect)
@@ -269,7 +278,7 @@ def plot_2d_nodes_boxes(nodes: dict | list, column_indexes: list[int], file_name
             # Add text without background box
             ax.text(center_x, center_y, str(round(count)), 
                    horizontalalignment='center', verticalalignment='center',
-                   fontsize=8, fontweight='bold', color='black')
+                   fontsize=6, fontweight='normal', color='black')
     
     # Set up the plot
     ax.set_xlim(0, 1.0)
