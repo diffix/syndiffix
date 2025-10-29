@@ -7,6 +7,9 @@ from typing import Any, Iterator
 import pandas as pd
 import numpy as np
 import random
+import copy
+
+from tests.blob.blob_tester import get_combinations
 
 from ..interval import Interval
 from ..tree import Node, Leaf, Branch, tree_walker, dump_tree
@@ -230,14 +233,20 @@ class TestNode:
     (from _noisy_count_cache), and 'initial' (always True for existing nodes).
 
     The _in suffix refers to structures taken from the inner represention of syndiffix. The _ex suffix refers to the external representations.
+
+    The TestNodeForest tnf must have the sub combinations of comb already prepared
     """
     
-    def __init__(self, syn: Synthesizer, comb: tuple, leafs_mode: str = "none", range_extend_fraction: float = 0.25) -> None:
+    def __init__(self, syn: Synthesizer, comb: tuple, tnf: TestNodeForest, leafs_mode: str = "none", range_extend_fraction: float = 0.25, assign_strategy_2d: str = 'pure_2d') -> None:
+        self.check_test_node_forest(tnf, comb)
+        self.comb = comb
+        self.tnf = tnf
         self.leafs_mode = leafs_mode
         self.range_extend_fraction = range_extend_fraction
         self.nodes_in = {}
         self.nodes_supp_in = {}
         self.leafs_in = {}
+        self.sub_leafs_in = {}       # for 2D only
         self.points_in = None
         self.histogram_in = None
         self.assigned_values_in = None
@@ -282,10 +291,201 @@ class TestNode:
             self.prepare_1d_leafs()
             col_name = syn.forest.orig_data.columns[comb[0]]
             self.assigned_values_in, self.assigned_values_ex = self.assign_1d_values(col_name = col_name)
+        elif self.is_2d:
+            self.subdivide_2d_leafs_from_1d()
+            self.prepare_2d_leafs()
+            self.sub_leafs_ex = self._convert_leafs(self.sub_leafs_in, self.comb)
+            col_names = [syn.columns[comb[0]], syn.columns[comb[1]]]
+            if assign_strategy_2d == 'pure_2d':
+                self.assigned_values_in, self.assigned_values_ex = self._assign_pure_2d(col_names = col_names)
+            pass
+        else:
+            raise ValueError(f"Nodes have ranges with length {len(self.nodes_in[self.max_node_id]['ranges'])}, only 1 or 2 are supported")
 
         self.nodes_in_stats = self.compute_statistics(self.nodes_in)
         self.nodes_supp_in_stats = self.compute_statistics(self.nodes_supp_in)
         self.leafs_in_stats = self.compute_statistics(self.leafs_in)
+        self.sub_leafs_in_stats = self.compute_statistics(self.sub_leafs_in)
+
+    def _convert_leafs(self, leafs: dict, comb: tuple) -> dict:
+        print(f"place converters at {comb[0]} and {comb[1]}")
+        converters = [self.convertors[comb[0]], self.convertors[comb[1]]]
+        null_mappings = [self.null_mappings[comb[0]], self.null_mappings[comb[1]]]
+        leafs_ex = {}
+
+        for leaf_id, leaf in leafs.items():
+            # Create a new leaf dictionary with converted ranges
+            converted_leaf = leaf.copy()
+            converted_ranges = []
+            
+            for i in range(len(leaf['ranges'])):
+                converted_range = {}
+                for edge in ['min', 'max']:
+                    leaf_value = leaf['ranges'][i][edge]
+                    interval = Interval(leaf_value, leaf_value)
+                    converted_value, _ = generate_value(interval=interval, convertor=converters[i], null_mapping=null_mappings[i], rng=self.unsafe_rng)
+                    converted_range[edge] = converted_value
+                converted_ranges.append(converted_range)
+            
+            converted_leaf['ranges'] = converted_ranges
+            leafs_ex[leaf_id] = converted_leaf
+        
+        return leafs_ex
+
+    def check_test_node_forest(self, tnf: TestNodeForest, comb: tuple) -> None:
+        # Loop through combinations of comb where the number of elements is one less than the length of comb
+        if len(comb) <= 1:
+            # No sub-combinations to check for single element or empty combinations
+            return
+        
+        # Generate all sub-combinations with length = len(comb) - 1
+        for sub_comb in itertools.combinations(comb, len(comb) - 1):
+            if sub_comb not in tnf.test_nodes:
+                raise ValueError(f"Required sub-combination {sub_comb} not found in TestNodeForest. "
+                               f"Make sure all sub-combinations are created before creating combination {comb}.")
+
+    def subdivide_2d_leafs_from_1d(self) -> None:
+        # Initialize sub_leafs_in as a copy of leafs_in
+        self.sub_leafs_in = {}
+        for node_id, leaf in self.leafs_in.items():
+            self.sub_leafs_in[node_id] = leaf.copy()
+        
+        comb_indices = list(self.comb)
+        
+        # Process each dimension
+        for dim_index in comb_indices:
+            print(f"Subdividing 2D leafs on dimension index {dim_index}")
+            # Create a new dictionary to hold the subdivided leafs for this dimension
+            new_sub_leafs = {}
+            next_node_id = max(self.sub_leafs_in.keys()) + 1 if self.sub_leafs_in else 0
+            
+            # Get the 1D TestNode for this dimension
+            dim_comb = tuple([dim_index])  # Create 1D combination tuple
+            if dim_comb not in self.tnf.test_nodes:
+                # Skip this dimension if we don't have the 1D data
+                continue
+            
+            dim_test_node = self.tnf.test_nodes[dim_comb]
+            dim_leafs = dim_test_node.leafs_in
+            
+            for leaf_id, leaf in self.sub_leafs_in.items():
+                leaf_range = leaf['ranges'][dim_index]
+                print(f"Processing 2D leaf {leaf_id} with range {leaf_range} on dimension index {dim_index}")
+                
+                # Check if this range is a point (min == max)
+                if leaf_range['min'] == leaf_range['max']:
+                    # This is a point, no subdivision needed for this leaf
+                    new_sub_leafs[leaf_id] = leaf
+                    continue
+                
+                # Find all 1D subleafs whose ranges overlap with this leaf's range
+                overlapping_subleafs = []
+                for subleaf_id, subleaf in dim_leafs.items():
+                    subleaf_range = subleaf['ranges'][0]  # 1D has only one range
+                    
+                    # Check if subleaf range overlaps with leaf range
+                    if (subleaf_range['max'] > leaf_range['min'] and 
+                        subleaf_range['min'] < leaf_range['max']):
+                        overlapping_subleafs.append(subleaf)
+                
+                # Check if there's only one overlapping subleaf with the same width as the leaf
+                if (len(overlapping_subleafs) == 1 and 
+                    overlapping_subleafs[0]['ranges'][0]['min'] == leaf_range['min'] and
+                    overlapping_subleafs[0]['ranges'][0]['max'] == leaf_range['max']):
+                    # Keep the original leaf since the 1D subdivision doesn't provide additional information
+                    new_sub_leafs[leaf_id] = leaf
+                    print(f"    Keeping original leaf - single overlapping subleaf with same range")
+                    continue
+                
+                if not overlapping_subleafs:
+                    # No overlapping subleafs found, keep the original leaf
+                    new_sub_leafs[leaf_id] = leaf
+                    continue
+                
+                # Create two halves of the current leaf range
+                mid_point = (leaf_range['min'] + leaf_range['max']) / 2
+                left_half = {'min': leaf_range['min'], 'max': mid_point}
+                right_half = {'min': mid_point, 'max': leaf_range['max']}
+                
+                # Assign overlapping subleafs to each half
+                left_subleafs = []
+                right_subleafs = []
+                
+                for subleaf in overlapping_subleafs:
+                    subleaf_range = subleaf['ranges'][0]
+                    subleaf_center = (subleaf_range['min'] + subleaf_range['max']) / 2
+                    
+                    if subleaf_center < mid_point:
+                        left_subleafs.append(subleaf)
+                    else:
+                        right_subleafs.append(subleaf)
+                
+                # Calculate total counts for each half
+                left_total_count = sum(subleaf['top_down_count'] for subleaf in left_subleafs)
+                right_total_count = sum(subleaf['top_down_count'] for subleaf in right_subleafs)
+                total_both_halves = left_total_count + right_total_count
+                
+                if total_both_halves == 0:
+                    # No count to distribute, keep the original leaf
+                    new_sub_leafs[leaf_id] = leaf
+                    continue
+                
+                left_leaf = None
+                if left_total_count > 0:
+                    left_fraction = left_total_count / total_both_halves
+                    left_ranges = leaf['ranges'].copy()
+                    left_ranges[dim_index] = left_half
+                    
+                    left_leaf = {
+                        'node_id': next_node_id,
+                        'node_type': 'Leaf',
+                        'initial': leaf.get('initial', False),
+                        'count': leaf['count'] * left_fraction,
+                        'ranges': left_ranges,
+                        'true_count': leaf.get('true_count'),
+                        'suppress': leaf.get('suppress', False),
+                        'children': {},
+                        'top_down_count': leaf['top_down_count'] * left_fraction,
+                        'rounded_count': int(round(leaf['top_down_count'] * left_fraction)),
+                    }
+                    
+                    print(f"    Created left subleaf {next_node_id} with ranges {left_ranges} and count {left_leaf['count']}")
+                    next_node_id += 1
+                
+                right_leaf = None
+                if right_total_count > 0:
+                    right_fraction = right_total_count / total_both_halves
+                    right_ranges = leaf['ranges'].copy()
+                    right_ranges[dim_index] = right_half
+                    
+                    right_leaf = {
+                        'node_id': next_node_id,
+                        'node_type': 'Leaf',
+                        'initial': leaf.get('initial', False),
+                        'count': leaf['count'] * right_fraction,
+                        'ranges': right_ranges,
+                        'true_count': leaf.get('true_count'),
+                        'suppress': leaf.get('suppress', False),
+                        'children': {},
+                        'top_down_count': leaf['top_down_count'] * right_fraction,
+                        'rounded_count': int(round(leaf['top_down_count'] * right_fraction)),
+                    }
+                    
+                    print(f"    Created right subleaf {next_node_id} with ranges {right_ranges} and count {right_leaf['count']}")
+                    next_node_id += 1
+                
+                # Adjust rounded counts to ensure they sum to the original leaf's rounded count
+                if left_leaf and right_leaf:
+                    self._adjust_subleaf_counts(left_leaf, right_leaf, leaf['rounded_count'])
+
+                # Add left and right subleafs to new_sub_leafs
+                if left_leaf and left_leaf['rounded_count'] > 0:
+                    new_sub_leafs[left_leaf['node_id']] = left_leaf
+                if right_leaf and right_leaf['rounded_count'] > 0:
+                    new_sub_leafs[right_leaf['node_id']] = right_leaf
+                    
+            # Update sub_leafs_in for the next dimension iteration
+            self.sub_leafs_in = new_sub_leafs
 
     def dump_tree_from_root(self) -> None:
         dump_tree(self.root)
@@ -459,40 +659,44 @@ class TestNode:
                     branch_count = node_dict['count']
                     child_sum = sum(self.nodes_supp_in[child_id]['count'] for child_id in children.values())
                     
-                    missing_child_indices = set()
+                    missing_child_info = []
                     if branch_count > child_sum:
                         # Find missing children
                         if self.leafs_mode == 'simple':
                             existing_child_indices = set(children.keys())
                             all_child_indices = set(range(expected_children))
                             missing_child_indices = all_child_indices - existing_child_indices
+                            # Convert to tuples format for consistency (child_index, None)
+                            missing_child_info = [(child_index, None) for child_index in missing_child_indices]
                         elif self.leafs_mode == 'leaf_only':
-                            missing_child_indices = self._get_leaf_only_missing_children(node_dict, leaf_nodes_list)
+                            missing_child_info = self._get_leaf_only_missing_children(node_dict, leaf_nodes_list)
                         else:
                             raise ValueError(f"add_leafs_to_nodes_supp: Unknown mode: {self.leafs_mode}")
 
-                    num_missing = len(missing_child_indices)
+                    num_missing = len(missing_child_info)
                     if num_missing > 0:
                         # Distribute remaining count as evenly as possible
                         remaining_count = branch_count - child_sum
                         child_counts = self._distribute_count_evenly(remaining_count, num_missing)
                         
                         # Create new nodes for missing children with non-zero counts
-                        for i, child_index in enumerate(sorted(missing_child_indices)):
+                        for i, (child_index, adjacent_leaf_id) in enumerate(missing_child_info):
                             new_node_count = child_counts[i]
                             if new_node_count > 0:  # Only create nodes with positive count
                                 node_dict['children'][child_index] = int(leaf_id)
                                 new_ranges = self._calculate_child_ranges(node_dict['ranges'], child_index)
+                                adjacent_leaf = self.nodes_supp_in[adjacent_leaf_id]
+                                adjusted_ranges = self._adjust_ranges(new_ranges, adjacent_leaf)
                                 
                                 new_node = {
                                     'node_id': int(leaf_id),
                                     'node_type': 'Leaf',
                                     'initial': False,
                                     'count': new_node_count,
-                                    'ranges': new_ranges,
+                                    'ranges': adjusted_ranges,
                                     'true_count': None,
                                     'suppress': False,
-                                    'children': {}
+                                    'children': {},
                                 }
                                 leafs_to_add.append(new_node)
                                 leaf_id += 1
@@ -527,10 +731,9 @@ class TestNode:
             
         return counts
 
-    def _get_leaf_only_missing_children(self, node_dict: dict, leaf_nodes_list: list[dict]) -> set[int]:
-        missing_child_indices = set()
+    def _get_leaf_only_missing_children(self, node_dict: dict, leaf_nodes_list: list[dict]) -> list[tuple[int, int]]:
+        missing_child_info = []
         
-        print(f"Checking node {node_dict} for leaf-only missing children")
         # Get all possible missing children
         children = node_dict.get('children', {})
         expected_children = 2 if self.is_1d else 4
@@ -542,16 +745,14 @@ class TestNode:
         for child_index in potential_missing:
             # Calculate what the missing child's range would be
             child_ranges = self._calculate_child_ranges(node_dict['ranges'], child_index)
-            print(f"  Potential missing child index {child_index} with ranges {child_ranges}")
             
             # Check if this missing child would be adjacent to any existing leaf
             for leaf_node in leaf_nodes_list:
                 if self._ranges_are_adjacent(child_ranges, leaf_node['ranges']):
-                    print(f"    Found adjacent leaf {leaf_node['node_id']} with ranges {leaf_node['ranges']}")
-                    missing_child_indices.add(child_index)
+                    missing_child_info.append((child_index, leaf_node['node_id']))
                     break  # Found one adjacent leaf, that's enough
         
-        return missing_child_indices
+        return missing_child_info
 
     def _ranges_are_adjacent(self, ranges1, ranges2):
         """Check if two multi-dimensional ranges are adjacent (share a border)"""
@@ -638,12 +839,14 @@ class TestNode:
     def make_only_leafs(self):
         """
         Create self.leafs_in dict by collecting only leaf nodes from nodes_supp.
+        Round the fractional counts from top_down_count.
         """
         self.leafs_in = {}
         
         for node_id, node_dict in self.nodes_supp_in.items():
             if node_dict['node_type'] == 'Leaf':
                 self.leafs_in[node_id] = node_dict.copy()
+        self.round_leafs_in()
     
     def compute_statistics(self, nodes_dict: dict) -> dict:
         """
@@ -918,6 +1121,15 @@ class TestNode:
                     if child_node['node_type'] == 'Branch':
                         nodes_to_process.append(child_id)
 
+    def prepare_2d_leafs(self):
+        """
+        Prepare 2D leafs by separating into:
+            self.points_in: list of ((p1, p2), count) for exact points
+            self.histogram_in: list of (((p1_min, p1_max), (p2), count) or (((p1), (p2_min, p2_max), count) for histogram on p1 or p2 respectively
+            self.heatmap_in: list of (((p1_min, p1_max), (p2_min, p2_max), count)
+        """
+        pass
+
     def prepare_1d_leafs(self):
         """
         Prepare 1D leafs data by separating into points and histogram, filling gaps.
@@ -926,13 +1138,10 @@ class TestNode:
         Points are exact values (min==max), histogram entries are ranges (min!=max).
         Gaps in histogram are filled with zero counts, ensuring coverage from 0 to 1.0.
         """
-        # Check dimensionality
         if not self.leafs_in:
             self.points_in = []
             self.histogram_in = []
             return
-
-        self.round_leafs_1d_in()
 
         # Initialize lists
         self.points_in = []
@@ -979,13 +1188,13 @@ class TestNode:
         if not histogram_intervals:
             self.histogram_in = [((0.0, 1.0), 0)]
 
-    def check_rounding_1d(self):
+    def check_rounding(self):
         total_top_down = sum(leaf['top_down_count'] for leaf in self.leafs_in.values())
         total_rounded = sum(leaf.get('rounded_count', 0) for leaf in self.leafs_in.values())
         if round(total_top_down) != total_rounded:
-            raise ValueError(f"check_rounding_1d: total rounded {total_rounded} does not match rounded total top_down {round(total_top_down)}")
+            raise ValueError(f"check_rounding: total rounded {total_rounded} does not match rounded total top_down {round(total_top_down)}")
 
-    def round_leafs_1d_in(self) -> None:
+    def round_leafs_in(self) -> None:
         total_rounded = 0
         total_unrounded = 0
         up_rounded_diffs = []
@@ -1000,7 +1209,6 @@ class TestNode:
             else:
                 down_rounded_diffs.append([node_id, -diff])
         needed_adjustment = round(total_unrounded) - total_rounded
-        print(f"round_leafs_1d_in: total_unrounded={total_unrounded}, total_rounded={total_rounded}, needed_adjustment={needed_adjustment}")
         # having rounded all the counts, we may be off from the total we need
         # fix this by adjusting some of the rounded counts up or down by 1, working
         # from those with the largest rounding diffs
@@ -1015,18 +1223,95 @@ class TestNode:
             sorted_diffs = sorted(up_rounded_diffs, key=lambda x: x[1], reverse=True)
             sorted_diffs += sorted(down_rounded_diffs, key=lambda x: x[1])
         if len(sorted_diffs) < abs(needed_adjustment):
-            raise ValueError("round_leafs_1d_in: not enough leafs to adjust to reach needed total")
+            raise ValueError("round_leafs_in: not enough leafs to adjust to reach needed total")
         for i in range(abs(needed_adjustment)):
             node_id = sorted_diffs[i][0]
             if needed_adjustment > 0:
                 self.leafs_in[node_id]['rounded_count'] += 1
-                print(f"round_leafs_1d_in: increasing node_id={node_id} to {self.leafs_in[node_id]['rounded_count']}")
             else:
                 if self.leafs_in[node_id]['rounded_count'] <= 0:
                     continue
                 self.leafs_in[node_id]['rounded_count'] -= 1
-                print(f"round_leafs_1d_in: decreasing node_id={node_id} to {self.leafs_in[node_id]['rounded_count']}")
-        self.check_rounding_1d()
+        self.check_rounding()
+
+    def _assign_pure_2d(self, col_names: tuple[str, str] = ('value_0', 'value_1')) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """
+        Create two 2-column DataFrames by assigning values based on 2D sub_leafs and their rounded_counts.
+        
+        For each sub_leaf:
+        - Creates rounded_count rows in both output DataFrames
+        - For each dimension: if min == max, assign min value; otherwise assign random value
+        - df_in contains the raw assigned values
+        - df_ex contains the converted values using the column convertors
+        
+        Args:
+            col_names: Tuple of two strings for the column names
+            
+        Returns:
+            Tuple of (df_in, df_ex) DataFrames with assigned values
+        """
+        if not self.is_2d:
+            raise ValueError("_assign_pure_2d only works with 2D data")
+        
+        if not self.sub_leafs_in:
+            # Return empty DataFrames if no sub_leafs_in
+            return pd.DataFrame(columns=col_names), pd.DataFrame(columns=col_names)
+        
+        all_values_in = []
+        all_values_ex = []
+        
+        for leaf_id, leaf in self.sub_leafs_in.items():
+            count = leaf['rounded_count']
+            ranges = leaf['ranges']
+            
+            if count <= 0:
+                continue
+            
+            # Generate count number of rows for this leaf
+            for _ in range(count):
+                row_values_in = []
+                row_values_ex = []
+                
+                # Process each dimension (0 and 1)
+                for dim in range(2):
+                    range_info = ranges[dim]
+                    min_val = range_info['min']
+                    max_val = range_info['max']
+                    
+                    # Assign value based on whether it's a point or range
+                    if min_val == max_val:
+                        # Point value
+                        value = min_val
+                    else:
+                        # Range value - assign random value
+                        if isinstance(min_val, int) and isinstance(max_val, int):
+                            # Integer range - random between min and max-1 (inclusive)
+                            value = self.unsafe_rng.randint(min_val, max_val - 1)
+                        else:
+                            # Float range - random between min and max (inclusive)
+                            value = self.unsafe_rng.uniform(min_val, max_val)
+                    
+                    row_values_in.append(value)
+                    
+                    # Convert the value for df_ex
+                    interval = Interval(value, value)
+                    converted_value, _ = generate_value(
+                        interval=interval, 
+                        convertor=self.convertors[dim], 
+                        null_mapping=self.null_mappings[dim], 
+                        rng=self.unsafe_rng
+                    )
+                    row_values_ex.append(converted_value)
+                
+                all_values_in.append(row_values_in)
+                all_values_ex.append(row_values_ex)
+        
+        # Create DataFrames
+        df_in = pd.DataFrame(all_values_in, columns=col_names)
+        df_ex = pd.DataFrame(all_values_ex, columns=col_names)
+        
+        return df_in, df_ex
+
 
     def assign_1d_values(self, col_name: str = 'value') -> tuple[pd.DataFrame, pd.DataFrame]:
         """
@@ -1116,6 +1401,135 @@ class TestNode:
                     break
         return new_values
 
+    def _adjust_ranges(self, new_ranges: list[dict], adjacent_leaf: dict) -> list[dict]:
+        """
+        Adjust new_ranges based on the adjacent leaf's border length.
+        
+        Args:
+            new_ranges: List of range dictionaries for the new node
+            adjacent_leaf: Dictionary representing the adjacent leaf node
+            
+        Returns:
+            List of adjusted range dictionaries
+        """
+        # If only one dimension, return as is
+        if len(new_ranges) == 1:
+            return new_ranges
+        
+        adjacent_ranges = adjacent_leaf['ranges']
+        
+        # Find which dimension is the adjacent border
+        adjacent_dimension = None
+        for dim in range(len(new_ranges)):
+            new_range = new_ranges[dim]
+            adj_range = adjacent_ranges[dim]
+            
+            # Check if they share a border (touch at boundaries)
+            if (new_range['max'] == adj_range['min'] or 
+                new_range['min'] == adj_range['max']):
+                adjacent_dimension = dim
+                break
+        
+        if adjacent_dimension is None:
+            # No adjacent border found, return original ranges
+            return new_ranges
+        
+        # Calculate border lengths
+        new_border_length = new_ranges[adjacent_dimension]['max'] - new_ranges[adjacent_dimension]['min']
+        adj_border_length = adjacent_ranges[adjacent_dimension]['max'] - adjacent_ranges[adjacent_dimension]['min']
+        
+        # If new border is same or smaller, return original ranges
+        if new_border_length <= adj_border_length:
+            return new_ranges
+        
+        # Calculate reduction proportion
+        reduction_proportion = adj_border_length / new_border_length
+        
+        # Create adjusted ranges
+        adjusted_ranges = []
+        for dim in range(len(new_ranges)):
+            new_range = new_ranges[dim]
+            
+            if dim == adjacent_dimension:
+                # Adjust the adjacent border to match adjacent leaf's length
+                # Position it to maintain the shared border
+                if new_range['max'] == adjacent_ranges[dim]['min']:
+                    # New range is to the left of adjacent range, keep the right edge fixed
+                    adjusted_ranges.append({
+                        'min': adjacent_ranges[dim]['min'] - adj_border_length,
+                        'max': adjacent_ranges[dim]['min']
+                    })
+                else:
+                    # New range is to the right of adjacent range, keep the left edge fixed
+                    adjusted_ranges.append({
+                        'min': adjacent_ranges[dim]['max'],
+                        'max': adjacent_ranges[dim]['max'] + adj_border_length
+                    })
+            else:
+                # For other dimensions, we need to position the adjusted range so it still
+                # overlaps with the adjacent leaf in this dimension
+                adj_range = adjacent_ranges[dim]
+                
+                # Calculate the overlap region between new_range and adj_range
+                overlap_min = max(new_range['min'], adj_range['min'])
+                overlap_max = min(new_range['max'], adj_range['max'])
+                overlap_center = (overlap_min + overlap_max) / 2
+                
+                # Calculate new length and center the adjusted range on the overlap
+                range_length = new_range['max'] - new_range['min']
+                new_length = range_length * reduction_proportion
+                
+                adjusted_ranges.append({
+                    'min': round(overlap_center - new_length / 2, 15),
+                    'max': round(overlap_center + new_length / 2, 15)
+                })
+        
+        return adjusted_ranges
+
+    def _adjust_subleaf_counts(self, left_leaf: dict, right_leaf: dict, original_rounded_count: int) -> None:
+        """
+        Adjust the rounded_count of left and right subleafs so their sum equals the original count.
+        
+        Args:
+            left_leaf: Dictionary representing the left subleaf
+            right_leaf: Dictionary representing the right subleaf  
+            original_rounded_count: The rounded count from the original leaf
+            
+        Raises:
+            ValueError: If the difference between sum and original count is greater than 1
+        """
+        current_sum = left_leaf['rounded_count'] + right_leaf['rounded_count']
+        difference = current_sum - original_rounded_count
+        
+        if abs(difference) > 1:
+            raise ValueError(
+                f"Cannot adjust subleaf counts: difference of {difference} is greater than 1. "
+                f"Left: {left_leaf['rounded_count']}, Right: {right_leaf['rounded_count']}, "
+                f"Original: {original_rounded_count}"
+            )
+        
+        if difference == 0:
+            # Already balanced, no adjustment needed
+            return
+        
+        # Calculate fractional parts of top_down_count
+        left_fractional = left_leaf['top_down_count'] - int(left_leaf['top_down_count'])
+        right_fractional = right_leaf['top_down_count'] - int(right_leaf['top_down_count'])
+        
+        if difference == 1:
+            # Sum is too high, subtract 1 from the leaf with lower fractional part
+            if left_fractional < right_fractional:
+                left_leaf['rounded_count'] -= 1
+            else:
+                right_leaf['rounded_count'] -= 1
+        elif difference == -1:
+            # Sum is too low, add 1 to the leaf with higher fractional part  
+            if left_fractional > right_fractional:
+                left_leaf['rounded_count'] += 1
+            else:
+                right_leaf['rounded_count'] += 1
+
+
 class TestNodeForest:
     def __init__(self, syn: Synthesizer, leafs_mode: str = 'none', range_extend_fraction: float = 0.25):
         """
@@ -1125,4 +1539,4 @@ class TestNodeForest:
         self.range_extend_fraction = range_extend_fraction
         for r in range(1, len(syn.column_convertors) + 1):
             for comb in itertools.combinations(range(len(syn.column_convertors)), r):
-                self.test_nodes[comb] = TestNode(syn, comb, leafs_mode=leafs_mode, range_extend_fraction=range_extend_fraction)
+                self.test_nodes[comb] = TestNode(syn, comb, self, leafs_mode=leafs_mode, range_extend_fraction=range_extend_fraction)

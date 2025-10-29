@@ -93,7 +93,7 @@ def plot_1d_nodes_bars(nodes: dict | list, column_index: int, file_name: str = "
         ax.add_patch(rect)
     
     # Set up the plot
-    ax.set_xlim(0, 1)
+    ax.set_xlim(-0.05, 1.05)
     
     # Set y-axis to log scale
     ax.set_yscale('log')
@@ -127,7 +127,7 @@ def plot_1d_nodes_bars(nodes: dict | list, column_index: int, file_name: str = "
     return plt
 
 
-def plot_2d_nodes_boxes(nodes: dict | list, column_indexes: list[int], file_name: str = "", display_counts: bool = False):
+def plot_2d_nodes_boxes(nodes: dict | list, column_indexes: list[int], file_name: str = "", display_counts: bool = False, df: pd.DataFrame = None):
     """
     Plot 2D boxes from a list of nodes showing the spatial structure.
     
@@ -144,6 +144,7 @@ def plot_2d_nodes_boxes(nodes: dict | list, column_indexes: list[int], file_name
                        from the ranges (e.g., [0, 1] for first two dimensions)
         file_name: String to display as part of the plot title
         display_counts: If True, display the count value in the center of each box (default: False)
+        df: Optional DataFrame to plot as scatter points underneath the boxes (default: None)
         
     Returns:
         matplotlib.pyplot object ready for display or further customization
@@ -159,8 +160,8 @@ def plot_2d_nodes_boxes(nodes: dict | list, column_indexes: list[int], file_name
         >>> plt_obj = plot_2d_boxes(nodes, [0, 1], "my_data.csv")  # Plot first two dimensions
         >>> plt_obj.show()  # Display the plot
         >>> 
-        >>> # Or save to file with counts displayed
-        >>> plt_obj = plot_2d_boxes(nodes, [0, 1], "my_data.csv", display_counts=True)
+        >>> # Or save to file with counts displayed and data points
+        >>> plt_obj = plot_2d_boxes(nodes, [0, 1], "my_data.csv", display_counts=True, df=data_df)
         >>> plt_obj.savefig('tree_visualization.png')
         
     Note:
@@ -168,6 +169,7 @@ def plot_2d_nodes_boxes(nodes: dict | list, column_indexes: list[int], file_name
         color, making it easy to see the hierarchical structure of the tree.
         Boxes with width 1.0 are ignored as they represent the full domain.
         Boxes with count 0 are shown as solid light grey rectangles.
+        If df is provided, data points are plotted as small black dots underneath the boxes.
     """
     
     if len(column_indexes) != 2:
@@ -186,7 +188,7 @@ def plot_2d_nodes_boxes(nodes: dict | list, column_indexes: list[int], file_name
     unique_widths = set()
     for node in nodes_list:
         ranges = node['ranges']
-        count = node['count']
+        count = node['rounded_count'] if 'rounded_count' in node else node['count']
         
         if count > 0:  # Only process non-zero count boxes
             if len(ranges) <= max(column_indexes):
@@ -211,11 +213,18 @@ def plot_2d_nodes_boxes(nodes: dict | list, column_indexes: list[int], file_name
     # Create figure and axis
     fig, ax = plt.subplots(1, 1, figsize=(8, 8), dpi=300)
     
+    # Plot scatter points from dataframe if provided
+    if df is not None and len(df.columns) >= 2:
+        # Use the columns corresponding to the column_indexes
+        x_data = df.iloc[:, column_indexes[0]]
+        y_data = df.iloc[:, column_indexes[1]]
+        ax.scatter(x_data, y_data, c='black', s=0.5, alpha=0.6, zorder=1)
+    
     # Process each node in the list
     for node in nodes_list:
         # Extract ranges from the node dictionary
         ranges = node['ranges']
-        count = node['count']
+        count = node['rounded_count'] if 'rounded_count' in node else node['count']
         
         # Check if we have enough dimensions
         if len(ranges) <= max(column_indexes):
@@ -242,7 +251,7 @@ def plot_2d_nodes_boxes(nodes: dict | list, column_indexes: list[int], file_name
             # Create solid light grey rectangle with no border
             rect = patches.Rectangle(
                 (x_min, y_min), width, height,
-                linewidth=0, edgecolor='none', facecolor='lightgrey', alpha=0.7
+                linewidth=0, edgecolor='none', facecolor='lightgrey', alpha=0.7, zorder=2
             )
         else:
             color = width_to_color[box_width]
@@ -257,13 +266,13 @@ def plot_2d_nodes_boxes(nodes: dict | list, column_indexes: list[int], file_name
                 # Create rectangle with colored border and light grey fill for leaf nodes
                 rect = patches.Rectangle(
                     (x_min, y_min), width, height,
-                    linewidth=line_width, edgecolor=color, facecolor='lightgrey', alpha=0.4
+                    linewidth=line_width, edgecolor=color, facecolor='lightgrey', alpha=0.4, zorder=2
                 )
             else:
                 # Create rectangle patch with colored border, no fill, and alpha transparency
                 rect = patches.Rectangle(
                     (x_min, y_min), width, height,
-                    linewidth=line_width, edgecolor=color, facecolor='none', alpha=0.7
+                    linewidth=line_width, edgecolor=color, facecolor='none', alpha=0.7, zorder=2
                 )
         
         # Add rectangle to plot
@@ -278,11 +287,11 @@ def plot_2d_nodes_boxes(nodes: dict | list, column_indexes: list[int], file_name
             # Add text without background box
             ax.text(center_x, center_y, str(round(count)), 
                    horizontalalignment='center', verticalalignment='center',
-                   fontsize=6, fontweight='normal', color='black')
+                   fontsize=6, fontweight='normal', color='black', zorder=3)
     
     # Set up the plot
-    ax.set_xlim(0, 1.0)
-    ax.set_ylim(0, 1.0)
+    ax.set_xlim(-0.05, 1.05)
+    ax.set_ylim(-0.05, 1.05)
     ax.set_aspect('equal')
     ax.set_xlabel(f'Dimension {column_indexes[0]}')
     ax.set_ylabel(f'Dimension {column_indexes[1]}')
