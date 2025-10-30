@@ -15,6 +15,7 @@ from .plotting import (
 
 from .quality import (
     ks_measure,
+    energy_distance_2d,
 )
 
 __all__ = [
@@ -28,4 +29,5 @@ __all__ = [
     "plot_kde",
     "plot_1d_orig_anon_cdf",
     "ks_measure",
+    "energy_distance_2d",
 ]
